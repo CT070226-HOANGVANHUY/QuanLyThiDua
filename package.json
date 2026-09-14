@@ -1,0 +1,26 @@
+{
+  "name": "quanlythidua",
+  "version": "1.0.0",
+  "description": "",
+  "main": "electron/main.mjs",
+  "scripts": {
+    "start": "node --experimental-strip-types src/server.ts",
+    "desktop": "electron .",
+    "dist": "electron-packager . QuanLyThiDua --platform=win32 --arch=x64 --out=dist --overwrite --asar=false --ignore=dist --ignore=_extract --ignore=workbook_research.json"
+  },
+  "type": "module",
+  "dependencies": {
+    "cookie-parser": "^1.4.7",
+    "docx": "^9.5.1",
+    "exceljs": "^4.4.0",
+    "express": "^5.2.1",
+    "nunjucks": "^3.2.4"
+  },
+  "devDependencies": {
+    "@electron/packager": "^20.3.0",
+    "@types/cookie-parser": "^1.4.10",
+    "@types/express": "^5.0.6",
+    "@types/nunjucks": "^3.2.6",
+    "electron": "^44.3.0"
+  }
+}

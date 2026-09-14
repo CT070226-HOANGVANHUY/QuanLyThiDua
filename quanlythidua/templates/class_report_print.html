@@ -1,0 +1,91 @@
+<!doctype html>
+<html lang="vi">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Báo cáo chi đoàn {{ doc.lop }}</title>
+  <style>
+    @page { size: A4 portrait; margin: 20mm 20mm 20mm 25mm; }
+    html, body { margin: 0; background: #fff; color: #111; }
+    body { font-family: "Times New Roman", Times, serif; font-size: 13pt; line-height: 1.25; }
+    .actions { display: flex; justify-content: center; gap: 8px; margin: 12px 0 16px; }
+    button { font: 12pt "Be Vietnam Pro", sans-serif; padding: 8px 14px; }
+    .head { display: grid; grid-template-columns: 1fr 1fr; text-align: center; font-weight: 700; text-transform: uppercase; }
+    h1 { text-align: center; font-size: 16pt; margin: 14px 0 8px; }
+    h2 { font-size: 13pt; margin: 14px 0 6px; }
+    h3 { font-size: 13pt; margin: 10px 0 4px; }
+    table { width: 100%; border-collapse: collapse; margin: 4px 0 10px; font-size: 12pt; }
+    th, td { border: 1px solid #111; padding: 3px 5px; vertical-align: top; }
+    th { text-align: center; }
+    .watermark { text-align: center; font-weight: 700; letter-spacing: 2px; margin: 8px 0; }
+    .sign { margin-top: 28px; page-break-inside: avoid; }
+    .sign p { margin: 4px 0; }
+    .sign .role { text-align: right; font-weight: 700; margin-top: 8px; }
+    .sign .name { text-align: right; margin-top: 48px; }
+    @media print { .actions { display: none !important; } }
+  </style>
+</head>
+<body>
+  <div class="actions">
+    <button type="button" onclick="window.print()">In / Lưu PDF</button>
+    {% if desktop %}<button type="button" onclick="window.desktop && window.desktop.openPrint(location.href)">Mở bản in trong trình duyệt</button>{% endif %}
+    <button type="button" onclick="history.back()">Quay lại</button>
+  </div>
+  <div class="head">
+    <div>{{ doc.org.xa }}<br>{{ doc.org.truong }}</div>
+    <div>{{ doc.org.doan }}<br>****</div>
+  </div>
+  <h1>BÁO CÁO THI ĐUA TUẦN</h1>
+  <p>Lớp: <b>{{ doc.lop }}</b> &nbsp; Năm học: {{ doc.nam_hoc }}</p>
+  <p>Tuần {{ doc.calendar_no or "…" }} &nbsp; Từ {{ doc.ngay_bd or "…" }} đến {{ doc.ngay_kt or "…" }}</p>
+  <p>Trạng thái: {{ doc.status }}{% if doc.revision %} · lần lưu {{ doc.revision }}{% endif %}</p>
+  {% if doc.notice %}<p class="watermark">{{ doc.notice }}</p>{% endif %}
+
+  <h2>1. Nề nếp</h2>
+  <h3>1.1. Nghỉ không lý do</h3>
+  <table>
+    <thead><tr><th>Họ tên</th><th>Ngày</th><th>Số lượng</th><th>Ghi chú</th></tr></thead>
+    <tbody>{% for row in doc.absences %}<tr><td>{{ row.ho_ten }}</td><td>{{ row.ngay }}</td><td>{{ row.so_luong }}</td><td>{{ row.ghi_chu }}</td></tr>{% else %}<tr><td colspan="4">&nbsp;</td></tr>{% endfor %}</tbody>
+  </table>
+  <h3>1.2. Đi học muộn / trang phục / phù hiệu</h3>
+  <table>
+    <thead><tr><th>Họ tên</th><th>Ngày</th><th>Số lượng</th><th>Ghi chú</th></tr></thead>
+    <tbody>
+      {% for row in doc.late %}<tr><td>{{ row.ho_ten }}</td><td>{{ row.ngay }}</td><td>{{ row.so_luong }}</td><td>{{ row.ghi_chu }}</td></tr>{% endfor %}
+      {% for row in doc.uniform %}<tr><td>{{ row.ho_ten }}</td><td>{{ row.ngay }}</td><td>{{ row.so_luong }}</td><td>{{ row.ghi_chu }}</td></tr>{% endfor %}
+      {% for row in doc.badge %}<tr><td>{{ row.ho_ten }}</td><td>{{ row.ngay }}</td><td>{{ row.so_luong }}</td><td>{{ row.ghi_chu }}</td></tr>{% endfor %}
+      {% if not doc.late and not doc.uniform and not doc.badge %}<tr><td colspan="4">&nbsp;</td></tr>{% endif %}
+    </tbody>
+  </table>
+  <h3>1.3. Vi phạm khác</h3>
+  <table>
+    <thead><tr><th>Họ tên</th><th>Ngày</th><th>Số lượng</th><th>Ghi chú</th></tr></thead>
+    <tbody>{% for row in doc.other %}<tr><td>{{ row.ho_ten }}</td><td>{{ row.ngay }}</td><td>{{ row.so_luong }}</td><td>{{ row.ghi_chu }}</td></tr>{% else %}<tr><td colspan="4">&nbsp;</td></tr>{% endfor %}</tbody>
+  </table>
+
+  <h2>2. Học tập</h2>
+  <h3>2.1. Thái độ / ý thức giờ học</h3>
+  <table>
+    <thead><tr><th>Họ tên</th><th>Tiết / môn</th><th>Nội dung</th><th>Ngày</th><th>Ghi chú</th></tr></thead>
+    <tbody>{% for row in doc.attitude %}<tr><td>{{ row.ho_ten }}</td><td>{{ row.tiet_mon }}</td><td>{{ row.noi_dung }}</td><td>{{ row.ngay }}</td><td>{{ row.ghi_chu }}</td></tr>{% else %}<tr><td colspan="5">&nbsp;</td></tr>{% endfor %}</tbody>
+  </table>
+  <h3>2.2. Giờ học</h3>
+  <table>
+    <thead><tr><th>Tổng giờ</th><th>Tốt</th><th>Khá</th><th>Trung bình</th><th>Yếu</th><th>Kém</th></tr></thead>
+    <tbody><tr><td>{{ doc.gio.tong }}</td><td>{{ doc.gio.tot }}</td><td>{{ doc.gio.kha }}</td><td>{{ doc.gio.tb }}</td><td>{{ doc.gio.yeu }}</td><td>{{ doc.gio.kem }}</td></tr></tbody>
+  </table>
+  {% if doc.gio.ghi_chu %}<p>Ghi chú giờ: {{ doc.gio.ghi_chu }}</p>{% endif %}
+  <h3>2.3. Điểm kiểm tra miệng</h3>
+  <table>
+    <thead><tr><th>9–10</th><th>7–8</th><th>5–6</th><th>3–4</th><th>0–2</th><th>Trên TB</th><th>Dưới TB</th></tr></thead>
+    <tbody><tr><td>{{ doc.ktm.n910 }}</td><td>{{ doc.ktm.n78 }}</td><td>{{ doc.ktm.n56 }}</td><td>{{ doc.ktm.n34 }}</td><td>{{ doc.ktm.n02 }}</td><td>{{ doc.ktm.ge5 }}</td><td>{{ doc.ktm.lt5 }}</td></tr></tbody>
+  </table>
+  {% if doc.ktm.ghi_chu %}<p>Ghi chú miệng: {{ doc.ktm.ghi_chu }}</p>{% endif %}
+
+  <div class="sign">
+    <p><i>{{ doc.org.dia_danh }}, ngày {{ doc.ngay_lap or "……" }}</i></p>
+    <p class="role">BÍ THƯ CHI ĐOÀN</p>
+    <p class="name">{{ doc.bi_thu or "(Ký, ghi rõ họ tên)" }}</p>
+  </div>
+</body>
+</html>

@@ -1,0 +1,57 @@
+{% extends "base.html" %}
+{% block title %}Tổng quan{% endblock %}
+{% block body %}
+<div class="page-head">
+  <h1 class="page-title">Tổng quan</h1>
+  {% include "week_filter.html" %}
+</div>
+<p class="page-sub">{% if tuan and tuan.ngay_bd %}{{ tuan.ngay_bd }} → {{ tuan.ngay_kt }}{% if tuan.calendar_no %} · Tuần {{ tuan.calendar_no }}{% endif %}{% else %}{{ tuan_hien_tai }}{% endif %} · {{ status_label }}</p>
+<div class="stats">
+  <div class="stat blue"><div class="k">Lớp</div><div class="v">{{ so_lop }}</div></div>
+  <div class="stat green"><div class="k">Đã báo cáo</div><div class="v">{{ da_bao }}</div></div>
+  <div class="stat yellow"><div class="k">Chưa báo cáo</div><div class="v">{{ chua_bao }}</div></div>
+  <div class="stat purple"><div class="k">Vi phạm</div><div class="v">{{ so_vp }}</div></div>
+</div>
+<div class="two">
+  <div class="card">
+    <div class="card-h"><h3>Top tuần đang chọn</h3></div>
+    {% if tops %}
+    <table class="data">
+      <thead><tr><th>Nhóm</th><th>XT</th><th>Lớp</th><th>Trạng thái</th></tr></thead>
+      <tbody>
+      {% for it in tops %}
+      <tr>
+        <td>{{ it.nhom }}</td><td><span class="rank {% if it.xt_chung==1 %}g{% endif %}">{{ it.xt_chung }}</span></td>
+        <td><a href="{{ url_for('cham_tuan', nam_id=nam.id, nam=year, thang=month, week_start=selection.week_start, tuan_id=selection.tuan_id, lop_id=it.lop_id) }}"><b>{{ it.ten }}</b></a></td>
+        <td>{{ 'Chính thức' if it.rank_status=='official' else 'Tạm tính' }}</td>
+      </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+    {% else %}<p class="muted">Chưa có xếp hạng tuần này.</p>{% endif %}
+  </div>
+  <div class="card">
+    <div class="card-h"><h3>Vi phạm phổ biến</h3></div>
+    {% if pho_bien %}
+    <table class="data">
+      {% for v in pho_bien %}<tr><td>{{ v.ten }}</td><td><b>{{ v.sl }}</b></td></tr>{% endfor %}
+    </table>
+    {% else %}<p class="muted">Chưa có dữ liệu tuần.</p>{% endif %}
+  </div>
+</div>
+{% if chart %}
+<div class="chart-card">
+  <div class="chart-head"><b>Số lớp đã gửi báo cáo</b><span>tuần có dữ liệu gần đây</span></div>
+  <div class="bars">
+    {% for c in chart %}
+    <div class="bar-col">
+      <div class="bar c{{ c.i % 3 }}" style="height: {{ 12 + (c.val / chart_max * 88)|int }}px">
+        {% if c.val %}<span class="n">{{ c.val }}</span>{% endif %}
+      </div>
+      <small>{{ c.label }}</small>
+    </div>
+    {% endfor %}
+  </div>
+</div>
+{% endif %}
+{% endblock %}

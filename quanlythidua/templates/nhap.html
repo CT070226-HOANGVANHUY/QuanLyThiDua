@@ -1,0 +1,125 @@
+{% extends "base.html" %}
+{% block title %}Nhập điểm{% endblock %}
+{% block body %}
+<h1 class="page-title">Nhập điểm</h1>
+<p class="page-sub">Điểm trừ nề nếp và điểm học tập theo tuần.</p>
+
+<form class="toolbar" method="get">
+  <div class="field"><label>Tuần</label>
+    <select name="tuan_id" onchange="this.form.submit()">
+      {% for t in tuans %}
+      <option value="{{ t.id }}" {% if tuan and t.id==tuan.id %}selected{% endif %}>Tuần {{ t.so_tuan }} — Tháng {{ t.thang }}/{{ t.nam }} (HK{{ t.hoc_ky }})</option>
+      {% endfor %}
+    </select>
+  </div>
+  <a class="btn ghost" href="{{ url_for('tao_tuan') }}">+ Tạo tuần</a>
+</form>
+
+{% if not tuan %}
+<p>Chưa có tuần. Bấm Tạo tuần.</p>
+{% else %}
+<div class="totals">
+  <div>Tổng trừ: <b class="red">{{ "%.0f"|format(cur.tong_tru) if cur else 0 }}</b></div>
+  <div>Tổng cộng: <b class="green">{{ "%.0f"|format(cur.tong_cong) if cur else 0 }}</b></div>
+  <div>Tổng net: <b>{{ "%.0f"|format(cur.tong_net) if cur else 0 }}</b></div>
+  <div>TB NN: <b>{{ "%.4f"|format(cur.tb_nn) if cur else 0 }}</b></div>
+</div>
+
+<div class="split">
+  <div class="list-lops">
+    {% for it in results %}
+    <a class="{% if lop and it.lop_id==lop.id %}on{% endif %}" href="{{ url_for('nhap', tuan_id=tuan.id, lop_id=it.lop_id) }}">
+      <span>{{ it.ten }}</span>
+      <span class="{% if it.tong_tru %}bad{% endif %}">{{ "%.0f"|format(it.tong_tru) }}</span>
+    </a>
+    {% endfor %}
+  </div>
+
+  <div>
+    {% if lop %}
+    <div class="card" style="padding:18px">
+      <div class="card-h"><h3>Nhóm {{ lop.nhom }} · {{ lop.ten }} · sĩ số {{ lop.si_so }}</h3>
+        <button class="btn-gold" type="button" onclick="document.getElementById('loiModal').classList.add('show')">+ Thêm lỗi vi phạm</button>
+      </div>
+      <form method="post" action="{{ url_for('luu_diem') }}">
+        <input type="hidden" name="nam_id" value="{{ nam.id }}">
+        <input type="hidden" name="tuan_id" value="{{ tuan.id }}">
+        <input type="hidden" name="lop_id" value="{{ lop.id }}">
+        <h4>1. Nề nếp — điểm trừ (số dương)</h4>
+        <div class="form-grid">
+          {% for key, lab, hint in nn_cols %}
+          <div class="field">
+            <label>{{ lab }} <small style="font-weight:400;color:#88a">{{ hint }}</small></label>
+            <input name="{{ key }}" type="number" step="any" value="{{ diem.get(key, 0)|int }}">
+          </div>
+          {% endfor %}
+        </div>
+        <h4>2. Học tập</h4>
+        <div class="form-grid">
+          {% for key, lab, w in gio_cols %}
+          <div class="field"><label>{{ lab }} ({{ '%+d'|format(w) }})</label>
+            <input name="{{ key }}" type="number" value="{{ diem.get(key, 0)|int }}"></div>
+          {% endfor %}
+          <div class="field"><label>Điểm ≥5</label><input name="ktm_ge5" type="number" value="{{ diem.get('ktm_ge5',0)|int }}"></div>
+          <div class="field"><label>Điểm &lt;5</label><input name="ktm_lt5" type="number" value="{{ diem.get('ktm_lt5',0)|int }}"></div>
+          <div class="field"><label>9–10 (+2)</label><input name="ktm_9_10" type="number" value="{{ diem.get('ktm_9_10',0)|int }}"></div>
+          <div class="field"><label>7–8 (+1)</label><input name="ktm_7_8" type="number" value="{{ diem.get('ktm_7_8',0)|int }}"></div>
+          <div class="field"><label>3–4 (−1)</label><input name="ktm_3_4" type="number" value="{{ diem.get('ktm_3_4',0)|int }}"></div>
+          <div class="field"><label>0–2 (−2)</label><input name="ktm_0_2" type="number" value="{{ diem.get('ktm_0_2',0)|int }}"></div>
+        </div>
+        <div class="field" style="margin-top:10px"><label>Ghi chú</label>
+          <textarea name="ghi_chu" rows="2">{{ diem.get('ghi_chu','') }}</textarea></div>
+        <div class="toolbar" style="margin-top:12px"><button class="btn" type="submit">Lưu lớp</button></div>
+      </form>
+
+      <h4>Lỗi đã cập nhật tuần này</h4>
+      <table class="data">
+        <thead><tr><th>Lỗi</th><th>SL</th><th>Điểm trừ</th><th>Họ tên</th><th></th></tr></thead>
+        <tbody>
+        {% for r in lois %}
+        <tr>
+          <td>{{ r.ten_loi }}</td><td>{{ r.so_luong|int }}</td><td>{{ r.diem_tru|int }}</td><td>{{ r.ho_ten }}</td>
+          <td>
+            <form method="post" action="{{ url_for('xoa_loi', loi_id=r.id) }}" onsubmit="return confirm('Xóa lỗi này?')">
+              <input type="hidden" name="nam_id" value="{{ nam.id }}">
+              <input type="hidden" name="tuan_id" value="{{ tuan.id }}">
+              <input type="hidden" name="lop_id" value="{{ lop.id }}">
+              <button class="btn danger sm" type="submit">Xóa</button>
+            </form>
+          </td>
+        </tr>
+        {% else %}
+        <tr><td colspan="5" style="color:#88a">Chưa có lỗi — bấm Thêm lỗi vi phạm</td></tr>
+        {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% else %}
+    <p>Chọn một lớp bên trái.</p>
+    {% endif %}
+  </div>
+</div>
+{% endif %}
+
+<div class="modal-bg" id="loiModal">
+  <form class="modal" method="post" action="{{ url_for('them_loi') }}">
+    <input type="hidden" name="nam_id" value="{{ nam.id }}">
+    <h3>Thêm lỗi vi phạm</h3>
+    <input type="hidden" name="tuan_id" value="{{ tuan.id if tuan else '' }}">
+    <input type="hidden" name="lop_id" value="{{ lop.id if lop else '' }}">
+    <div class="field"><label>Loại lỗi</label>
+      <select name="loi_idx">
+        {% for item in loi_mau %}
+        <option value="{{ loop.index0 }}">{{ item[1] }} (−{{ item[2]|int }}/{{ item[3] }})</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div class="field"><label>Số lượng</label><input name="so_luong" type="number" step="any" value="1"></div>
+    <div class="field"><label>Họ tên HS (nếu có)</label><input name="ho_ten"></div>
+    <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:14px">
+      <button type="button" class="btn ghost" onclick="document.getElementById('loiModal').classList.remove('show')">Hủy</button>
+      <button class="btn" type="submit">Cập nhật vào chi đoàn</button>
+    </div>
+  </form>
+</div>
+{% endblock %}

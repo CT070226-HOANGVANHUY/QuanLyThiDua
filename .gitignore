@@ -1,0 +1,34 @@
+# Dependencies and build output
+node_modules/
+dist/
+
+# Runtime data and generated reports
+data/
+BaoCao/
+*.db
+*.db-*
+*.sqlite
+*.sqlite3
+*.log
+
+# Local runtimes and caches
+tools/
+__pycache__/
+*.py[cod]
+
+# Local research and source documents
+workbook_research.json
+*.xls
+*.xlsx
+*.doc
+*.docx
+*.pdf
+
+# Environment and editor files
+.env
+.env.*
+!.env.example
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db

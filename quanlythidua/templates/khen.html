@@ -1,0 +1,35 @@
+{% extends "base.html" %}
+{% block title %}Khen thưởng{% endblock %}
+{% block body %}
+<h1 class="page-title">Khen thưởng</h1>
+<form class="toolbar" method="get">
+  <div class="field"><label>Kỳ</label>
+    <select name="ky" onchange="this.form.submit()">
+      {% for k, lab in kys %}
+      <option value="{{ k }}" {% if k==ky %}selected{% endif %}>{{ lab }}</option>
+      {% endfor %}
+    </select>
+  </div>
+</form>
+<form method="post">
+  <input type="hidden" name="nam_id" value="{{ nam.id }}">
+  <input type="hidden" name="ky" value="{{ ky }}">
+  <div class="card">
+  <table class="data">
+    <thead><tr><th>XH</th><th>Lớp</th><th>Tổng</th><th>Kết quả</th><th>Ghi chú</th></tr></thead>
+    <tbody>
+    {% for it in rows %}
+    <tr>
+      <td>{{ it.hang }}</td>
+      <td><b>{{ it.ten }}</b></td>
+      <td>{{ it.tong }}</td>
+      <td><input name="kq_{{ it.lop_id }}" value="{{ it.ket_qua }}"></td>
+      <td><input name="gc_{{ it.lop_id }}" value="{{ it.ghi_chu }}"></td>
+    </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  </div>
+  <div class="toolbar" style="margin-top:12px"><button class="btn" type="submit">Lưu</button></div>
+</form>
+{% endblock %}

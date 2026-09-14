@@ -1,0 +1,79 @@
+{% extends "base.html" %}
+{% block title %}Báo cáo và xuất{% endblock %}
+{% block body %}
+<h1 class="page-title">Báo cáo và xuất</h1>
+<p class="page-sub">Word/In cho từng lớp. Excel cho bảng toàn trường, nhóm hoặc lớp — hạng vẫn tính trên toàn nhóm.</p>
+<div class="two">
+  <div class="card">
+    <h2>Báo cáo chi đoàn</h2>
+    <form class="form-grid" method="get" action="/bao-cao/lop/word">
+      <div class="field"><label>Tuần</label><select name="tuan_id">{% for week in tuans %}<option value="{{ week.id }}">Tuần {{ week.so_tuan }} · {{ week.ngay_bd or 'chưa gán ngày' }}</option>{% endfor %}</select></div>
+      <div class="field"><label>Lớp</label><select name="lop_id">{% for lop in lops %}<option value="{{ lop.id }}">{{ lop.ten }}</option>{% endfor %}</select></div>
+      <input type="hidden" name="nam_id" value="{{ nam.id }}">
+      <div class="toolbar">
+        <button class="btn-gold" type="submit">Tải Word</button>
+        <button class="btn ghost" type="submit" formaction="/bao-cao/lop/in">In / PDF</button>
+        <button class="btn ghost" type="submit" name="blank" value="1">Mẫu trắng</button>
+      </div>
+    </form>
+  </div>
+  <div class="card">
+    <h2>Tuần</h2>
+    <form class="form-grid" method="get" action="/xuat/bao-cao">
+      <input type="hidden" name="scope" value="tuan"><input type="hidden" name="model" value="monthly">
+      <div class="field"><label>Tuần</label><select name="key">{% for week in tuans %}<option value="{{ week.id }}">Tuần {{ week.so_tuan }} · {{ week.ngay_bd or 'chưa gán ngày' }}</option>{% endfor %}</select></div>
+      <div class="field"><label>Phạm vi</label><select name="cut"><option value="school">Toàn trường</option><option value="group">Nhóm</option><option value="class">Một lớp</option></select></div>
+      <div class="field"><label>Nhóm</label><input name="nhom" type="number" min="1" placeholder="khi chọn nhóm"></div>
+      <div class="field"><label>Lớp</label><select name="lop_id"><option value="">—</option>{% for lop in lops %}<option value="{{ lop.id }}">{{ lop.ten }}</option>{% endfor %}</select></div>
+      <div class="field"><label>Dữ liệu</label><select name="view"><option value="preview">Xem trước</option><option value="official">Chính thức</option></select></div>
+      <div class="field"><label>Định dạng</label><select name="format"><option value="xlsx">Excel</option><option value="print">Bản in</option></select></div>
+      <div class="toolbar"><button class="btn-gold" type="submit">Tạo báo cáo</button></div>
+    </form>
+  </div>
+  <div class="card">
+    <h2>Tháng</h2>
+    <form class="form-grid" method="get" action="/xuat/bao-cao">
+      <input type="hidden" name="scope" value="thang"><input type="hidden" name="model" value="monthly">
+      <div class="field"><label>Tháng</label><select name="key">{% for month in months %}<option value="{{ month.key }}">{{ month.key }} · HK{{ month.semester }}</option>{% endfor %}</select></div>
+      <div class="field"><label>Dữ liệu</label><select name="view"><option value="official">Chính thức</option><option value="preview">Xem trước</option></select></div>
+      <div class="field"><label>Định dạng</label><select name="format"><option value="xlsx">Excel</option><option value="docx">Word</option><option value="print">Bản in</option></select></div>
+      <div class="toolbar"><button class="btn-gold" type="submit">Tạo báo cáo</button></div>
+    </form>
+  </div>
+  <div class="card">
+    <h2>Nửa học kỳ và học kỳ</h2>
+    <form class="form-grid" method="get" action="/xuat/bao-cao">
+      <div class="field"><label>Phạm vi</label><select name="scope" data-period-scope><option value="hk">Học kỳ</option><option value="nua">Nửa học kỳ</option></select></div>
+      <div class="field"><label>Kỳ</label><select name="key" data-period-key><option data-scope="hk" value="1">HKI</option><option data-scope="hk" value="2">HKII</option><option data-scope="nua" value="1-dau">HKI · nửa đầu</option><option data-scope="nua" value="1-sau">HKI · nửa sau</option><option data-scope="nua" value="2-dau">HKII · nửa đầu</option><option data-scope="nua" value="2-sau">HKII · nửa sau</option></select></div>
+      <div class="field"><label>Mô hình</label><select name="model" data-period-model>{% for value, label in models %}<option value="{{ value }}">{{ label }}</option>{% endfor %}</select></div>
+      <div class="field"><label>Dữ liệu</label><select name="view"><option value="official">Chính thức</option><option value="preview">Xem trước</option></select></div>
+      <div class="field"><label>Định dạng</label><select name="format"><option value="xlsx">Excel</option><option value="docx">Word</option><option value="print">Bản in</option></select></div>
+      <div class="toolbar"><button class="btn-gold" type="submit">Tạo báo cáo</button></div>
+    </form>
+  </div>
+  <div class="card">
+    <h2>Cả năm</h2>
+    <form class="form-grid" method="get" action="/xuat/bao-cao">
+      <input type="hidden" name="scope" value="nam"><input type="hidden" name="key" value="all">
+      <div class="field"><label>Mô hình</label><select name="model">{% for value, label in models %}<option value="{{ value }}">{{ label }}</option>{% endfor %}</select></div>
+      <div class="field"><label>Dữ liệu</label><select name="view"><option value="official">Chính thức</option><option value="preview">Xem trước</option></select></div>
+      <div class="field"><label>Định dạng</label><select name="format"><option value="xlsx">Excel</option><option value="docx">Word</option><option value="print">Bản in</option></select></div>
+      <div class="toolbar"><button class="btn-gold" type="submit">Tạo báo cáo</button></div>
+    </form>
+  </div>
+</div>
+{% endblock %}
+{% block extra %}
+<script>
+  const scope = document.querySelector("[data-period-scope]");
+  const key = document.querySelector("[data-period-key]");
+  const model = document.querySelector("[data-period-model]");
+  function syncPeriodKeys() {
+    for (const option of key.options) option.disabled = option.dataset.scope !== scope.value;
+    if (key.selectedOptions[0].disabled) key.value = [...key.options].find(option => !option.disabled).value;
+    if (scope.value === "nua") model.value = "halves";
+  }
+  scope.addEventListener("change", syncPeriodKeys);
+  syncPeriodKeys();
+</script>
+{% endblock %}

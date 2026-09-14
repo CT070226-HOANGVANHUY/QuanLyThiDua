@@ -1,0 +1,79 @@
+{% extends "base.html" %}
+{% block title %}Tiêu chí{% endblock %}
+{% block body %}
+<h1 class="page-title">Tiêu chí thi đua</h1>
+<form method="post" action="{{ url_for('diem_co_so') }}" class="toolbar">
+  <input type="hidden" name="nam_id" value="{{ nam.id }}">
+  <div class="field"><label>Điểm cơ sở</label><input name="diem_co_so" type="number" step="any" value="{{ base }}"></div>
+  <button class="btn ghost" type="submit">Lưu</button>
+  <button class="btn-gold" type="button" onclick="openTc()">+ Tiêu chí</button>
+</form>
+<div class="card criteria-card">
+<div class="table-wrap"><table class="data criteria-table">
+  <thead><tr><th>Mã</th><th>Tên tiêu chí</th><th>Nhóm</th><th>Điểm</th><th>Đơn vị</th><th>Dùng</th><th>Thao tác</th></tr></thead>
+  <tbody>
+  {% for r in rows %}
+  <tr>
+    <td>{{ r.ma }}</td>
+    <td>{{ r.ten }}</td>
+    <td>{% if r.nhom=='ne_nep' %}Nề nếp{% elif r.nhom=='hoc_tap' %}Học tập{% else %}Khác{% endif %}</td>
+    <td><b>{{ r.diem }}</b></td>
+    <td>{{ r.don_vi }}</td>
+    <td>{% if r.ap_dung %}Có{% else %}Không{% endif %}</td>
+    <td>
+      <button class="btn ghost sm" type="button" onclick='openTc({{ r|tojson }})'>Sửa</button>
+      <form method="post" action="{{ url_for('xoa_tieu_chi', id=r.id) }}" style="display:inline" onsubmit="return confirm('Xóa?')">
+        <input type="hidden" name="nam_id" value="{{ nam.id }}">
+        <button class="btn danger sm" type="submit">Xóa</button>
+      </form>
+    </td>
+  </tr>
+  {% endfor %}
+  </tbody>
+</table></div>
+</div>
+<div class="modal-bg" id="tcModal">
+  <form class="modal" method="post" action="{{ url_for('luu_tieu_chi') }}">
+    <input type="hidden" name="nam_id" value="{{ nam.id }}">
+    <h3 id="tcTitle">Thêm tiêu chí</h3>
+    <input type="hidden" name="id" id="tcId">
+    <div class="form-grid">
+      <div class="field"><label>Mã</label><input name="ma" id="tcMa"></div>
+      <div class="field"><label>Tên</label><input name="ten" id="tcTen" required></div>
+      <div class="field"><label>Nhóm</label>
+        <select name="nhom" id="tcNhom">
+          <option value="ne_nep">Nề nếp</option>
+          <option value="hoc_tap">Học tập</option>
+          <option value="khac">Khác</option>
+        </select>
+      </div>
+      <div class="field"><label>Điểm</label><input name="diem" id="tcDiem" type="number" step="any" required></div>
+      <div class="field"><label>Đơn vị</label><input name="don_vi" id="tcDv" value="HS"></div>
+      <div class="field"><label>Áp dụng</label>
+        <select name="ap_dung" id="tcOn"><option value="1">Có</option><option value="0">Không</option></select>
+      </div>
+      <div class="field" style="grid-column:1/-1"><label>Ghi chú</label><input name="ghi_chu" id="tcGc"></div>
+    </div>
+    <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:14px">
+      <button type="button" class="btn ghost" onclick="document.getElementById('tcModal').classList.remove('show')">Hủy</button>
+      <button class="btn" type="submit">Lưu</button>
+    </div>
+  </form>
+</div>
+{% endblock %}
+{% block extra %}
+<script>
+function openTc(r){
+  document.getElementById('tcModal').classList.add('show');
+  document.getElementById('tcTitle').textContent = r ? 'Sửa tiêu chí' : 'Thêm tiêu chí';
+  document.getElementById('tcId').value = r ? r.id : '';
+  document.getElementById('tcMa').value = r ? r.ma : '';
+  document.getElementById('tcTen').value = r ? r.ten : '';
+  document.getElementById('tcNhom').value = r ? r.nhom : 'ne_nep';
+  document.getElementById('tcDiem').value = r ? r.diem : '';
+  document.getElementById('tcDv').value = r ? r.don_vi : 'HS';
+  document.getElementById('tcOn').value = r ? String(r.ap_dung) : '1';
+  document.getElementById('tcGc').value = r ? (r.ghi_chu||'') : '';
+}
+</script>
+{% endblock %}

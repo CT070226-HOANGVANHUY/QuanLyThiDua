@@ -1,0 +1,48 @@
+{% extends "base.html" %}
+{% block title %}Năm học{% endblock %}
+{% block body %}
+<h1 class="page-title">Cấu hình năm học {{ nam.ten }}</h1>
+<p class="page-sub">Tuần tính thứ Sáu đến thứ Năm, tính vào tháng của thứ Sáu. Chưa xác nhận ngày HKII thì chưa có kết quả học kỳ chính thức.</p>
+<form method="post" action="/nam-hoc" class="card" data-dirty-guard>
+  <input type="hidden" name="nam_id" value="{{ nam.id }}">
+  <div class="form-grid">
+    <div class="field"><label for="calendar-start">Bắt đầu năm học</label><input id="calendar-start" name="ngay_bd" type="date" value="{{ calendar.ngay_bd }}" required></div>
+    <div class="field"><label for="calendar-end">Kết thúc năm học</label><input id="calendar-end" name="ngay_kt" type="date" value="{{ calendar.ngay_kt }}" required></div>
+    <div class="field"><label for="calendar-hk2">Bắt đầu HKII (chỉ nhập khi đã xác nhận)</label><input id="calendar-hk2" name="hk2_bd" type="date" value="{{ calendar.hk2_bd }}"></div>
+    <div class="field"><label for="org-place">Địa danh ký</label><input id="org-place" name="dia_danh" value="{{ calendar.org.dia_danh }}"></div>
+    <div class="field"><label for="org-xa">Đoàn xã</label><input id="org-xa" name="xa" value="{{ calendar.org.xa }}"></div>
+    <div class="field"><label for="org-truong">Đoàn trường</label><input id="org-truong" name="truong" value="{{ calendar.org.truong }}"></div>
+    <div class="field full"><label for="org-doan">Đoàn cấp trên</label><input id="org-doan" name="doan" value="{{ calendar.org.doan }}"></div>
+  </div>
+  <p style="margin:16px 0 0"><button type="submit" class="btn">Lưu lịch năm học</button></p>
+</form>
+<div class="card">
+  <h2>Dữ liệu cũ cần đối chiếu</h2>
+  <p class="muted">Giữ nguyên định danh và số tuần cũ. Gán ngày không được trùng khoảng của tuần khác. Tuần đã khóa phải mở lại trước.</p>
+  {% if legacy %}
+  <div class="table-wrap"><table class="data">
+    <thead><tr><th>Tuần</th><th>Tháng / năm</th><th>Khoảng ngày</th><th>Ngày thứ Sáu</th><th></th></tr></thead>
+    <tbody>
+    {% for week in legacy %}
+    <tr>
+      <td>Tuần {{ week.so_tuan }}</td>
+      <td>{{ week.thang }}/{{ week.nam }}</td>
+      <td>{{ week.ngay_bd or "—" }} → {{ week.ngay_kt or "—" }}</td>
+      <td colspan="2">
+        <form method="post" action="/nam-hoc/gan-ngay" class="toolbar" style="margin:0">
+          <input type="hidden" name="nam_id" value="{{ nam.id }}">
+          <input type="hidden" name="tuan_id" value="{{ week.id }}">
+          <input type="hidden" name="revision" value="{{ week.revision }}">
+          <input id="week-start-{{ week.id }}" type="date" name="week_start" value="{{ week.ngay_bd }}" required {% if week.trang_thai!='nhap' %}disabled{% endif %}>
+          <button class="btn sm" type="submit" {% if week.trang_thai!='nhap' %}disabled{% endif %}>Gán ngày</button>
+          <a class="btn ghost sm" href="/bao-cao-tuan?nam_id={{ nam.id }}&tuan_id={{ week.id }}">Xem</a>
+        </form>
+      </td>
+    </tr>
+    {% endfor %}
+    </tbody>
+  </table></div>
+  {% else %}<p class="muted">Không có tuần cũ cần đối chiếu.</p>{% endif %}
+</div>
+{% endblock %}
+{% block extra %}<script src="/static/js/forms.js"></script>{% endblock %}

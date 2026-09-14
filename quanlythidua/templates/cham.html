@@ -1,0 +1,91 @@
+{% extends "base.html" %}
+{% block title %}Chấm tuần{% endblock %}
+{% block body %}
+<div class="page-head">
+  <h1 class="page-title">Chấm tuần</h1>
+  {% include "week_filter.html" %}
+</div>
+
+{% if tuan and current %}
+<form class="class-picker" method="get" action="/cham-tuan">
+  <input type="hidden" name="nam_id" value="{{ nam.id }}">
+  <input type="hidden" name="nam" value="{{ year }}">
+  <input type="hidden" name="thang" value="{{ month }}">
+  <input type="hidden" name="week_start" value="{{ selection.week_start }}">
+  {% if selection.tuan_id %}<input type="hidden" name="tuan_id" value="{{ selection.tuan_id }}">{% endif %}
+  <label for="score-class">Lớp</label>
+  <select id="score-class" name="lop_id" onchange="this.form.submit()">
+    {% for it in results %}
+    <option value="{{ it.lop_id }}" {% if it.lop_id==current.lop_id %}selected{% endif %}>{{ it.ten }} — {% if it.xt_chung!=null %}Xếp thứ {{ it.xt_chung }}{% elif it.bao_cao %}Đang tính{% else %}Chưa báo cáo{% endif %}</option>
+    {% endfor %}
+  </select>
+</form>
+
+<section class="card score-panel">
+  <div class="score-head">
+    <div>
+      <h2>{{ current.ten }}</h2>
+      <p>{{ tuan.ngay_bd }} → {{ tuan.ngay_kt }}</p>
+    </div>
+    <span class="status-badge {% if locked %}locked{% elif current.bao_cao %}ready{% endif %}">{% if locked %}Đã khóa{% elif current.bao_cao %}Đang nhập{% else %}Chưa báo cáo{% endif %}</span>
+  </div>
+
+  {% if not current.bao_cao %}
+  <div class="empty-state">
+    <b>Chưa có báo cáo của lớp {{ current.ten }}</b>
+    <p>Nhập báo cáo tuần trước; điểm và xếp hạng sẽ được tính từ dữ liệu có nguồn.</p>
+    <a class="btn" href="{{ url_for('bao_cao_tuan',nam_id=nam.id,nam=year,thang=month,week_start=selection.week_start,tuan_id=selection.tuan_id,lop_id=current.lop_id) }}">Mở báo cáo tuần</a>
+  </div>
+  {% else %}
+  <div class="score-metrics">
+    <div class="score-metric"><span>TB nề nếp</span><b>{{ "%.3f"|format(current.tb_nn) }}</b><small>NN / sĩ số</small></div>
+    <div class="score-metric"><span>TB giờ học</span><b>{{ "%.3f"|format(current.tb_gio) }}</b></div>
+    <div class="score-metric"><span>TB kiểm tra miệng</span><b>{{ "%.3f"|format(current.tb_ktm) }}</b></div>
+    <div class="score-metric"><span>TB học tập</span><b>{{ "%.3f"|format(current.tb_ht) }}</b></div>
+    <div class="score-metric score-rank"><span>Xếp thứ nề nếp</span><b>{{ current.xt_nn if current.xt_nn!=null else '—' }}</b></div>
+    <div class="score-metric score-rank"><span>Xếp thứ học tập</span><b>{{ current.xt_ht if current.xt_ht!=null else '—' }}</b></div>
+    <div class="score-metric score-rank primary"><span>Xếp thứ chung</span><b>{{ current.xt_chung if current.xt_chung!=null else '—' }}</b></div>
+  </div>
+
+  <details class="formula-note">
+    <summary>Cách tính điểm</summary>
+    <p>NN = tổng điểm nề nếp có dấu; TB NN = NN / sĩ số. TB học tập = TB giờ + TB kiểm tra miệng. Các lớp được xếp riêng trong từng nhóm; tổng hai thứ hạng càng thấp càng tốt.</p>
+  </details>
+
+  {% if current.missing|length %}<div class="alert error"><b>Chưa đủ điều kiện:</b> {{ current.missing|join('; ') }}</div>{% endif %}
+
+  <div class="table-wrap score-source">
+    <table class="data">
+      <thead><tr><th>Tiêu chí</th><th>Nguồn</th><th>Số lượng</th><th>Điểm/đơn vị</th><th>Thành điểm</th><th>Lý do</th></tr></thead>
+      <tbody>
+      {% for ln in current.lines %}
+      <tr><td>{{ ln.ten_snapshot or ln.tieu_chi }}</td><td>{{ 'Từ báo cáo' if ln.nguon=='auto' else 'Điều chỉnh' }}</td><td>{{ ln.so_luong }}</td><td>{{ ln.diem_mot }} / {{ ln.don_vi_snapshot }}</td><td><b>{{ ln.thanh_diem }}</b></td><td>{{ ln.reason or '—' }}</td></tr>
+      {% else %}<tr><td colspan="6" class="muted">Không phát sinh điểm cộng/trừ.</td></tr>{% endfor %}
+      </tbody>
+    </table>
+  </div>
+
+  {% if not locked and selection.tuan_id %}
+  <form method="post" class="adjust-form" data-dirty-guard>
+    <input type="hidden" name="nam_id" value="{{ nam.id }}">
+    <input type="hidden" name="tuan_id" value="{{ selection.tuan_id }}">
+    <input type="hidden" name="week_start" value="{{ selection.week_start }}">
+    <input type="hidden" name="lop_id" value="{{ current.lop_id }}">
+    <input type="hidden" name="nam" value="{{ year }}">
+    <input type="hidden" name="thang" value="{{ month }}">
+    <input type="hidden" name="revision" value="{{ tuan.revision or 0 }}">
+    <h3>Điều chỉnh nề nếp</h3>
+    <p class="muted">Chỉ dùng cho khoản bổ sung ngoài báo cáo. Nhập 0 để xóa điều chỉnh đã lưu.</p>
+    <div class="adjust-grid">
+      <div class="field"><label for="criterion">Tiêu chí</label><select id="criterion" name="tieu_chi_id">{% for tc in tieu_chi %}<option value="{{ tc.id }}">{{ tc.ten }} ({{ tc.diem }}/{{ tc.don_vi }})</option>{% endfor %}</select></div>
+      <div class="field"><label for="quantity">Số lượng</label><input id="quantity" name="so_luong" type="number" min="0" step="1" value="1"></div>
+      <div class="field"><label for="reason">Lý do</label><input id="reason" name="reason" required></div>
+      <button class="btn" type="submit">Lưu điều chỉnh</button>
+    </div>
+  </form>
+  {% endif %}
+  {% endif %}
+</section>
+{% endif %}
+{% endblock %}
+{% block extra %}<script src="/static/js/forms.js"></script>{% endblock %}

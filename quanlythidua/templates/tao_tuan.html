@@ -1,0 +1,19 @@
+{% extends "base.html" %}
+{% block title %}Tạo tuần{% endblock %}
+{% block body %}
+<h1 class="page-title">Tạo tuần</h1>
+<form class="card" method="post" style="padding:20px;max-width:480px">
+  <input type="hidden" name="nam_id" value="{{ nam.id }}">
+  <div class="field"><label>Tuần số</label><input name="so_tuan" type="number" value="{{ so_tuan }}" required></div>
+  <div class="field"><label>Tháng</label><input name="thang" type="number" value="{{ thang }}" required></div>
+  <div class="field"><label>Năm</label><input name="nam" type="number" value="{{ nam_y }}" required></div>
+  <div class="field"><label>Học kỳ</label><input name="hoc_ky" type="number" value="{{ hoc_ky }}" required></div>
+  <div class="field"><label>Từ ngày (thứ Sáu)</label><input name="ngay_bd" type="date" value="{{ ngay_bd }}"></div>
+  <div class="field"><label>Đến ngày (thứ Năm)</label><input name="ngay_kt" type="date" value="{{ ngay_kt }}"></div>
+  <div class="field"><label>Ghi chú</label><input name="ghi_chu"></div>
+  <div class="toolbar" style="margin-top:12px">
+    <button class="btn" type="submit">Lưu tuần</button>
+    <a class="btn ghost" href="{{ url_for('bao_cao_tuan') }}">Hủy</a>
+  </div>
+</form>
+{% endblock %}

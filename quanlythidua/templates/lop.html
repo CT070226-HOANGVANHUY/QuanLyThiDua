@@ -1,0 +1,68 @@
+{% extends "base.html" %}
+{% block title %}Lớp{% endblock %}
+{% block body %}
+<h1 class="page-title">Lớp</h1>
+<p class="page-sub">Sĩ số, nhóm, giáo viên chủ nhiệm.</p>
+<div class="toolbar">
+  <button class="btn-gold" type="button" onclick="openLop()">+ Thêm lớp</button>
+</div>
+<div class="card">
+<table class="data">
+  <thead><tr><th>Nhóm</th><th>Lớp</th><th>Khối</th><th>Sĩ số</th><th>GVCN</th><th>Thứ tự</th><th></th></tr></thead>
+  <tbody>
+  {% for r in lops %}
+  <tr>
+    <td>{{ r.nhom }}</td>
+    <td><b>{{ r.ten }}</b></td>
+    <td>{{ r.khoi }}</td>
+    <td>{{ r.si_so }}</td>
+    <td>{{ r.gvcn }}</td>
+    <td>{{ r.thu_tu }}</td>
+    <td>
+      <button class="btn ghost sm" type="button" onclick='openLop({{ r|tojson }})'>Sửa</button>
+      <form method="post" action="{{ url_for('xoa_lop', lop_id=r.id) }}" style="display:inline" onsubmit="return confirm('Xóa lớp {{ r.ten }}?')">
+        <input type="hidden" name="nam_id" value="{{ nam.id }}">
+        <button class="btn danger sm" type="submit">Xóa</button>
+      </form>
+    </td>
+  </tr>
+  {% endfor %}
+  </tbody>
+</table>
+</div>
+
+<div class="modal-bg" id="lopModal">
+  <form class="modal" method="post" action="{{ url_for('luu_lop') }}">
+    <input type="hidden" name="nam_id" value="{{ nam.id }}">
+    <h3 id="lopTitle">Thêm lớp</h3>
+    <input type="hidden" name="id" id="lopId">
+    <div class="form-grid">
+      <div class="field"><label>Tên lớp</label><input name="ten" id="lopTen" required></div>
+      <div class="field"><label>Khối</label><input name="khoi" id="lopKhoi" type="number" value="10"></div>
+      <div class="field"><label>Nhóm (1/2)</label><input name="nhom" id="lopNhom" type="number" value="1"></div>
+      <div class="field"><label>Sĩ số</label><input name="si_so" id="lopSi" type="number" value="40"></div>
+      <div class="field"><label>GVCN</label><input name="gvcn" id="lopGvcn"></div>
+      <div class="field"><label>Thứ tự</label><input name="thu_tu" id="lopTt" type="number" value="0"></div>
+    </div>
+    <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:14px">
+      <button type="button" class="btn ghost" onclick="document.getElementById('lopModal').classList.remove('show')">Hủy</button>
+      <button class="btn" type="submit">Lưu</button>
+    </div>
+  </form>
+</div>
+{% endblock %}
+{% block extra %}
+<script>
+function openLop(r){
+  document.getElementById('lopModal').classList.add('show');
+  document.getElementById('lopTitle').textContent = r ? 'Sửa lớp' : 'Thêm lớp';
+  document.getElementById('lopId').value = r ? r.id : '';
+  document.getElementById('lopTen').value = r ? r.ten : '';
+  document.getElementById('lopKhoi').value = r ? r.khoi : 10;
+  document.getElementById('lopNhom').value = r ? r.nhom : 1;
+  document.getElementById('lopSi').value = r ? r.si_so : 40;
+  document.getElementById('lopGvcn').value = r ? (r.gvcn||'') : '';
+  document.getElementById('lopTt').value = r ? r.thu_tu : 0;
+}
+</script>
+{% endblock %}

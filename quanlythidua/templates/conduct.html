@@ -1,0 +1,178 @@
+{% extends "base.html" %}
+{% block title %}Đánh giá GVCN{% endblock %}
+{% macro number(value) -%}{% if value is none %}—{% elif value is number %}{{ "%.12g"|format(value) }}{% else %}{{ value }}{% endif %}{%- endmacro %}
+{% block body %}
+{% if mode == 'teacher' %}
+<h1 class="page-title">Đánh giá GVCN</h1>
+<p class="page-sub">{{ nam.ten }} · HK{{ hk }}</p>
+{% else %}
+<h1 class="page-title">{{ mode_labels[mode] }} · HK{{ hk }}</h1>
+<p class="page-sub">{{ nam.ten }}</p>
+{% endif %}
+
+<form class="toolbar" method="get" action="{{ url_for('conduct.index') }}">
+  <div class="field"><label for="conduct-hk">Học kỳ</label>
+    <select id="conduct-hk" name="hk" onchange="this.form.submit()">
+      <option value="1" {% if hk==1 %}selected{% endif %}>Học kỳ I</option>
+      <option value="2" {% if hk==2 %}selected{% endif %}>Học kỳ II</option>
+    </select>
+  </div>
+  <div class="field"><label for="conduct-mode">Bảng</label>
+    <select id="conduct-mode" name="mode" onchange="this.form.submit()">
+      {% for key, label in mode_labels.items() %}
+      <option value="{{ key }}" {% if key==mode %}selected{% endif %}>{{ label }}</option>
+      {% endfor %}
+    </select>
+  </div>
+  <a class="btn-gold" href="{{ url_for('conduct.export', hk=hk) }}">Xuất Excel</a>
+  <a class="btn ghost" href="{{ url_for('lop') }}">Tên GVCN</a>
+</form>
+
+{% if mode == 'teacher' %}
+
+{% if not weeks %}<div class="banner danger"><span class="dot">!</span> Chưa có tuần HK{{ hk }}.</div>{% endif %}
+{% if not raw_rows %}<div class="card" style="padding:16px">Chưa có lớp.</div>{% endif %}
+{% if table.rows %}
+<form method="post" action="{{ url_for('conduct.index', hk=hk, mode='teacher') }}">
+  <input type="hidden" name="nam_id" value="{{ nam.id }}">
+  <input type="hidden" name="hk" value="{{ hk }}">
+  <input type="hidden" name="action" value="ratios_bulk">
+  <div class="card conduct-card">
+  <table class="data conduct-table">
+    <thead>
+      <tr>
+        <th>Lớp</th>
+        <th>GVCN</th>
+        {% for week in weeks %}<th class="week-col">Tuần {{ week.display_no }}</th>{% endfor %}
+        <th>Điểm NN</th>
+        <th>Điểm tỷ lệ</th>
+        <th>Hệ số quy đổi</th>
+        <th>Điểm trừ</th>
+        <th>Điểm thi đua</th>
+        <th>Trạng thái</th>
+      </tr>
+    </thead>
+    <tbody>
+    {% for row in table.rows %}
+      <tr>
+        <td><b>{{ row.ten }}</b></td>
+        <td>{{ row.gvcn or "—" }}</td>
+        {% for week in weeks %}
+        <td>{{ number(row['w_' ~ week.id]) }}</td>
+        {% endfor %}
+        <td>{{ number(row.total) }}</td>
+        <td>
+          <input aria-label="Điểm tỷ lệ {{ row.ten }}" type="number" step="any" min="0" name="ratio_{{ row.lop_id }}" value="{{ row.ratio if row.ratio is not none else '' }}" placeholder="Chưa nhập" style="width:88px">
+        </td>
+        <td>{{ number(row.quotient) }}</td>
+        <td>{{ number(row.deduction) }}</td>
+        <td><b>{{ number(row.final) }}</b></td>
+        <td>{{ row.status }}</td>
+      </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  <div class="toolbar" style="margin-top:12px">
+    <button class="btn" type="submit">Lưu điểm tỷ lệ cả bảng</button>
+    <a class="btn ghost" href="{{ url_for('conduct.index', hk=hk, mode='data') }}">Sửa nguồn điểm tuần</a>
+  </div>
+  </div>
+</form>
+{% endif %}
+
+{% elif mode == 'classic' %}
+{% if table.rows %}
+<form method="post" action="{{ url_for('conduct.index', hk=hk, mode='classic') }}">
+  <input type="hidden" name="nam_id" value="{{ nam.id }}">
+  <input type="hidden" name="hk" value="{{ hk }}">
+  <input type="hidden" name="action" value="ratios_bulk">
+  <div class="card conduct-card">
+  <table class="data conduct-table">
+    <thead>
+      <tr>
+        <th>Nhóm</th><th>Lớp</th><th>GVCN</th>
+        {% for week in weeks %}<th class="week-col">Tuần {{ week.display_no }}</th>{% endfor %}
+        <th>Tổng điểm</th><th>Điểm tỷ lệ</th><th>Điểm trừ</th><th>Điểm nề nếp</th><th>Trạng thái</th>
+      </tr>
+    </thead>
+    <tbody>
+    {% for row in table.rows %}
+      <tr>
+        <td>{{ row.nhom }}</td>
+        <td><b>{{ row.ten }}</b></td>
+        <td>{{ row.gvcn or "—" }}</td>
+        {% for week in weeks %}<td>{{ number(row['w_' ~ week.id]) }}</td>{% endfor %}
+        <td>{{ number(row.total) }}</td>
+        <td><input type="number" step="any" min="0" name="ratio_{{ row.lop_id }}" value="{{ row.ratio if row.ratio is not none else '' }}" placeholder="Chưa nhập" style="width:88px"></td>
+        <td>{{ number(row.deduction) }}</td>
+        <td><b>{{ number(row.final) }}</b></td>
+        <td>{{ row.status }}</td>
+      </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  <div class="toolbar" style="margin-top:12px"><button class="btn" type="submit">Lưu điểm tỷ lệ</button></div>
+  </div>
+</form>
+{% endif %}
+
+{% else %}
+<div class="card" style="padding:16px;margin-bottom:16px">
+  <p>Điểm trừ tuần <b>dương</b>. Ứng dụng lấy từ điểm tuần đã lưu; có thể nhập thay thế mà không sửa bảng nhập tuần.</p>
+</div>
+{% if not weeks %}<div class="card" style="padding:16px;margin-bottom:16px">Chưa có tuần trong HK{{ hk }}.</div>{% endif %}
+<div class="card conduct-card">
+<table class="data conduct-table">
+  <thead><tr><th>Nhóm</th><th>Lớp</th><th>GVCN</th>{% for week in weeks %}<th class="week-col">Tuần {{ week.display_no }}</th>{% endfor %}<th>Tổng</th><th>Trạng thái</th></tr></thead>
+  <tbody>
+  {% for row in raw_rows %}
+  <tr>
+    <td>{{ row.nhom }}</td>
+    <td><a href="{{ url_for('conduct.index', hk=hk, mode='data', lop_id=row.lop_id) }}">{{ row.ten }}</a></td>
+    <td>{{ row.gvcn }}</td>
+    {% for cell in row.cells %}<td title="{{ cell.source }}">{{ number(cell.penalty) }}{% if cell.override is not none %}<br><small>Nhập riêng</small>{% endif %}</td>{% endfor %}
+    <td><b>{{ number(row.total) }}</b></td>
+    <td>{{ row.status }}</td>
+  </tr>
+  {% endfor %}
+  </tbody>
+</table>
+</div>
+<form class="toolbar" method="get">
+  <input type="hidden" name="hk" value="{{ hk }}"><input type="hidden" name="mode" value="data">
+  <div class="field"><label>Lớp nhập nguồn thay thế</label>
+    <select name="lop_id">
+      {% for row in raw_rows %}
+      <option value="{{ row.lop_id }}" {% if selected and row.lop_id==selected.lop_id %}selected{% endif %}>{{ row.ten }} — {{ row.gvcn }}</option>
+      {% endfor %}
+    </select>
+  </div>
+  <button class="btn" type="submit">Chọn lớp</button>
+</form>
+{% if selected %}
+<form method="post" action="{{ url_for('conduct.index', hk=hk, mode='data', lop_id=selected.lop_id) }}">
+  <input type="hidden" name="nam_id" value="{{ nam.id }}"><input type="hidden" name="hk" value="{{ hk }}">
+  <input type="hidden" name="lop_id" value="{{ selected.lop_id }}"><input type="hidden" name="action" value="penalties">
+  <div class="card" style="padding:16px;overflow:auto">
+    <h2>Nguồn riêng: {{ selected.ten }} — {{ selected.gvcn }}</h2>
+    <p>Để trống ô thay thế rồi lưu = xóa nguồn riêng, trở về điểm tuần gốc.</p>
+    <table class="data">
+      <thead><tr><th>Tuần</th><th>Điểm tuần gốc</th><th>Điểm thay thế</th><th>Ghi chú nguồn</th><th>Đang dùng</th></tr></thead>
+      <tbody>
+      {% for cell in selected.cells %}
+      <tr>
+        <td>Tuần {{ cell.so_tuan }}<input type="hidden" name="tuan_id" value="{{ cell.tuan_id }}"></td>
+        <td>{{ number(cell.default) }}</td>
+        <td><input type="number" step="any" min="0" name="penalty_{{ cell.tuan_id }}" value="{{ cell.override if cell.override is not none else '' }}" placeholder="Gốc" style="width:140px"></td>
+        <td><input name="source_{{ cell.tuan_id }}" value="{{ cell.source_note }}" maxlength="500" style="min-width:200px"></td>
+        <td>{{ number(cell.penalty) }}</td>
+      </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+    {% if weeks %}<button class="btn" type="submit" style="margin-top:16px">Lưu nguồn {{ selected.ten }}</button>{% endif %}
+  </div>
+</form>
+{% endif %}
+{% endif %}
+{% endblock %}

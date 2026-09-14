@@ -1,0 +1,40 @@
+{% extends "base.html" %}
+{% block title %}Công thức các bảng{% endblock %}
+{% block body %}
+<h1 class="page-title">Công thức và nguồn dữ liệu</h1>
+<p class="page-sub">Đối chiếu công thức trong 14 sheet của Bang thi dua TUAN 3.xls. File gốc không bị sửa.</p>
+<div class="card" style="padding:20px;margin-bottom:20px">
+  <h3>Không trộn các mẫu khác năm</h3>
+  <p>Ban nhập / bản in ghi tuần 3 tháng 9 năm 2025. Các bảng khác chứa mẫu 2016–2017 và 2017–2018, số lớp và nhóm lớp khác nhau. Ứng dụng dùng danh sách lớp, nhóm và sĩ số của năm học đang chọn; không tự chép kết quả lịch sử vào năm hiện tại.</p>
+  <p>Dữ liệu mẫu có sẵn từ phiên bản trước đã được gắn năm 2026–2027. Đây không phải kết quả thực tế năm 2026–2027; hãy tạo năm học và nhập dữ liệu thực trước khi sử dụng báo cáo chính thức.</p>
+  <p><strong>XT</strong> là xếp thứ. Xếp riêng từng nhóm lớp; đồng hạng theo kiểu 1, 2, 2, 4. Bảng mới giữ ô thiếu dữ liệu trống và báo chưa đủ dữ liệu, không biến thành hạng nhất. Kỷ luật, khen thưởng và ghi chú do người phụ trách nhập, không tự suy diễn.</p>
+</div>
+<div class="card" style="overflow-x:auto">
+<table class="data">
+<thead><tr><th>Sheet nguồn</th><th>Công thức / lưu ý</th><th>Thao tác</th></tr></thead>
+<tbody>
+<tr><td>Ban nhap</td><td>Báo cáo lớp là nguồn số giờ, năm dải điểm miệng và sự kiện. Chấm bổ sung chỉ thêm nề nếp, luôn có tiêu chí, mức điểm lúc ghi và lý do.</td><td><a href="/bao-cao-tuan">Báo cáo tuần</a></td></tr>
+<tr><td>Ban in</td><td>NN = tổng điểm nề nếp có dấu / sĩ số. TB giờ = (2×Tốt + Khá − Yếu − 2×Kém) / số giờ đã xếp loại. TB miệng = (2×9–10 + 7–8 − 3–4 − 2×0–2) / tổng cả 5 dải; 5–6 có trọng số 0 nhưng vẫn thuộc mẫu số. TB HT = TB giờ + TB miệng. Xếp NN và HT giảm dần, cộng hai hạng rồi xếp chung tăng dần trong từng nhóm.</td><td><a href="/ket-qua-tuan">Kết quả tuần</a></td></tr>
+<tr><td>XT Thi</td><td>TB tỷ lệ các môn có nhập; điểm xếp loại = (3×Giỏi + 2×Khá + TB − 2×Yếu − 3×Kém) / sĩ số. Tổng XT = 2×XT tỷ lệ + XT loại, rồi xếp tăng dần. Môn thứ sáu không có tên trong file, hiển thị là môn bổ sung.</td><td><a href="/danh-gia?kind=thi">Bảng thi</a></td></tr>
+<tr><td>XT HD TT</td><td>Tổng XT thể thao + XT văn nghệ, rồi xếp tăng dần.</td><td><a href="/danh-gia?kind=hoat-dong">Hoạt động tập thể</a></td></tr>
+<tr><td>Thi dua thang</td><td>Tổng XT các tuần thuộc tháng, rồi xếp tăng dần. Có nguồn nhập tay rõ ràng cho tháng lịch sử chưa có dữ liệu tuần.</td><td><a href="/tong-hop?mode=thang">Theo tháng</a></td></tr>
+<tr><td>Thi dua nua dau</td><td>Tiêu đề thực là HKI 2017–2018: tổng XT các tháng → XT thi đua. Tổng chung = XT thi đua + XT HĐTT. Công thức K9 = H9+J9, không dùng cột điểm thi I9.</td><td><a href="/tong-hop?mode=hk&key=1&model=monthly">Mẫu tháng, HKI</a></td></tr>
+<tr><td>Thi dua nua sau</td><td>Tiêu đề thực là HKII 2017–2018: tổng XT các tháng → XT thi đua. Tổng chung = XT thi đua + XT thi + XT HĐTT. Trong file cột thi đang trống; ứng dụng cho chọn có tính thi / HĐTT hay không, không ngầm coi thiếu điểm là 0.</td><td><a href="/tong-hop?mode=hk&key=2&model=monthly">Mẫu tháng, HKII</a></td></tr>
+<tr><td>Hoc ky I<br>Hoc ky II</td><td>Mẫu hai nửa 2016–2017: tổng = XT nửa đầu + 2×XT nửa sau → XT thi đua HK; tổng HK = 2×XT thi đua HK + XT HĐTT → XT học kỳ. Phân tuần vào hai nửa bằng cấu hình, không tự đoán từ số tuần.</td><td><a href="/tong-hop?mode=hk&model=halves">Mẫu hai nửa</a></td></tr>
+<tr><td>Ca nam</td><td>Tổng = XT HKI + 2×XT HKII, rồi xếp tăng dần. Công thức D8 = B8+C8*2. Kết quả phụ thuộc mẫu học kỳ được chọn.</td><td><a href="/tong-hop?mode=nam">Cả năm</a></td></tr>
+<tr><td>Điểm NN(HKI)<br>Điểm NN (HKII)</td><td>Tổng điểm phạt dương / điểm tỷ lệ → điểm trừ; điểm nề nếp = 20 − điểm trừ. Tỷ lệ nhập riêng từng lớp. Ví dụ 232 / 25 → 10,72 điểm.</td><td><a href="/ne-nep-gvcn?mode=classic">Điểm nề nếp</a></td></tr>
+<tr><td>Dữ liệu</td><td>Điểm phạt theo lớp, theo tuần. Ứng dụng lấy dữ liệu tuần theo mã lớp, cho phép nhập thay thế có ghi nguồn mà không sửa điểm tuần ban đầu.</td><td><a href="/ne-nep-gvcn?mode=data">Dữ liệu nề nếp</a></td></tr>
+<tr><td>Điểm NN mới (2)</td><td>U = −tổng điểm phạt; Y = TRUNC(U/tỷ lệ, 0); AA = Y×0,1; điểm GVCN = 20+AA. Không cộng cột phụ AB vào điểm cuối. Ví dụ −116 / 3 → TRUNC = −38 → 16,2 điểm. Tỷ lệ khác mẫu nề nếp cũ.</td><td><a href="/ne-nep-gvcn?mode=teacher">Đánh giá GVCN</a></td></tr>
+</tbody>
+</table>
+</div>
+<div class="card" style="padding:20px;margin-top:20px">
+<h3>Những khác biệt cần biết trước khi chốt báo cáo</h3>
+<ul>
+<li>XT Thi chứa lỗi Excel #N/A và #DIV/0! khi chưa có tỷ lệ; không được đọc mã lỗi 42 / 7 thành điểm số. Sĩ số trong file liên kết theo vị trí dòng có thể lệch lớp; ứng dụng dùng mã lớp.</li>
+<li>Điểm NN mới (2) liên kết đến nguồn Excel bên ngoài. Ứng dụng dùng dữ liệu tuần nội bộ / số nhập thay thế; không giả lập liên kết ngoài đã mất.</li>
+<li>Ban in cộng điểm kiểm tra 3–4 với dấu dương, trái quy chế 2026–2027. Phần nhập tuần giữ mức −1 theo quy chế mới; giờ kém −2 cũng theo quy chế mới. Vì vậy không sao chép nguyên xi lỗi của mẫu cũ.</li>
+<li>Hai mô hình học kỳ là hai lựa chọn độc lập. Hãy kiểm tra cấu hình thành phần thi, hoạt động tập thể và các tháng / tuần trước khi xuất báo cáo.</li>
+</ul>
+</div>
+{% endblock %}

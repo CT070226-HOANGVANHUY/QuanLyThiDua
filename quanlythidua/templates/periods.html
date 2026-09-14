@@ -1,0 +1,69 @@
+{% extends "base.html" %}
+{% block title %}Tổng hợp{% endblock %}
+{% block body %}
+<h1 class="page-title">Tổng hợp</h1>
+<form class="toolbar" method="get">
+  <div class="field"><label>Mô hình</label><select name="model" onchange="this.form.submit()">
+    {% for value, label in models %}<option value="{{ value }}" {% if value==model %}selected{% endif %}>{{ label }}</option>{% endfor %}
+  </select></div>
+  <div class="field"><label>Phạm vi</label><select name="mode" onchange="this.form.submit()">
+    {% for value, label in modes %}{% if not (model=='monthly' and value=='nua') %}<option value="{{ value }}" {% if value==mode %}selected{% endif %}>{{ label }}</option>{% endif %}{% endfor %}
+  </select></div>
+  <div class="field"><label>Kỳ</label><select name="key" onchange="this.form.submit()">
+    {% for value, label in keys %}<option value="{{ value }}" {% if value==key %}selected{% endif %}>{{ label }}</option>{% endfor %}
+  </select></div>
+  <div class="field"><label>Dữ liệu</label><select name="view" onchange="this.form.submit()">
+    <option value="official" {% if resultView=='official' %}selected{% endif %}>Chính thức</option>
+    <option value="preview" {% if resultView=='preview' %}selected{% endif %}>Xem trước</option>
+  </select></div>
+  <a class="btn-gold" href="{{ url_for('periods.export', scope=mode, mode=mode, key=key, model=model, view=resultView, format='xlsx', cut='school') }}">Xuất Excel</a>
+</form>
+
+<div class="card">
+  <h2>{{ table.title }}</h2>
+  <p class="muted">{{ table.source }}</p>
+  {% for note in table.notes %}<p class="notice">{{ note }}</p>{% endfor %}
+  <form method="post" action="/tong-hop/ghi-chu">
+    <input type="hidden" name="nam_id" value="{{ nam_hoc.id }}">
+    <input type="hidden" name="mode" value="{{ mode }}"><input type="hidden" name="key" value="{{ key }}">
+    <input type="hidden" name="model" value="{{ model }}"><input type="hidden" name="view" value="{{ resultView }}">
+    <div class="table-wrap"><table class="data" style="min-width: {{ table.columns|length * 115 + 120 }}px">
+      <thead><tr>{% for col in table.columns %}<th>{{ col[1] }}</th>{% endfor %}<th>XT ghi đè</th></tr></thead>
+      <tbody>{% for row in table.rows %}<tr>
+        {% for col in table.columns %}
+          {% if col[0]=='discipline' %}<td><input name="discipline_{{ row.lop_id }}" value="{{ row.discipline }}"></td>
+          {% elif col[0]=='reward' %}<td><input name="reward_{{ row.lop_id }}" value="{{ row.reward }}"></td>
+          {% elif col[0]=='notes' %}<td><input name="notes_{{ row.lop_id }}" value="{{ row.notes }}"></td>
+          {% else %}<td>{{ row[col[0]] if row[col[0]] != null else '—' }}</td>{% endif %}
+        {% endfor %}
+        <td><input type="number" min="1" name="rank_{{ row.lop_id }}" value="{{ row.override_rank or '' }}"></td>
+      </tr>{% endfor %}</tbody>
+    </table></div>
+    <button class="btn" type="submit">Lưu ghi chú và XT ghi đè</button>
+  </form>
+</div>
+
+<details class="card">
+  <summary>Cấu hình kỳ tổng hợp</summary>
+  <form method="post" action="/tong-hop/cau-hinh">
+    <input type="hidden" name="nam_id" value="{{ nam_hoc.id }}"><input type="hidden" name="action" value="configure">
+    <input type="hidden" name="mode" value="{{ mode }}"><input type="hidden" name="key" value="{{ key }}">
+    <input type="hidden" name="model" value="{{ model }}"><input type="hidden" name="view" value="{{ resultView }}">
+    <h3>Tuần</h3>
+    <table class="data"><thead><tr><th>Tuần</th><th>Tính vào tổng hợp</th><th>Nửa kỳ</th></tr></thead><tbody>
+      {% for week in weeks %}<tr><td>{{ week.so_tuan }} · {{ week.ngay_bd }}</td>
+        <td><select name="included_{{ week.id }}"><option value="1" {% if week.included %}selected{% endif %}>Có</option><option value="0" {% if not week.included %}selected{% endif %}>Không</option></select></td>
+        <td><select name="week_{{ week.id }}"><option value="">Theo tháng</option><option value="dau">Nửa đầu</option><option value="sau">Nửa sau</option></select></td>
+      </tr>{% endfor %}
+    </tbody></table>
+    <h3>Tháng</h3>
+    <table class="data"><thead><tr><th>Tháng</th><th>Học kỳ</th><th>Nửa kỳ</th></tr></thead><tbody>
+      {% for month in months %}<tr><td>{{ month.key }}</td>
+        <td><select name="semester_{{ month.key }}"><option value="1" {% if month.semester==1 %}selected{% endif %}>HKI</option><option value="2" {% if month.semester==2 %}selected{% endif %}>HKII</option></select></td>
+        <td><select name="halfmonth_{{ month.key }}"><option value="">Không gán</option><option value="dau" {% if month.half=='dau' %}selected{% endif %}>Nửa đầu</option><option value="sau" {% if month.half=='sau' %}selected{% endif %}>Nửa sau</option></select></td>
+      </tr>{% endfor %}
+    </tbody></table>
+    <button class="btn" type="submit">Lưu cấu hình</button>
+  </form>
+</details>
+{% endblock %}
