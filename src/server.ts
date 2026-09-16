@@ -105,6 +105,7 @@ import { buildClassReport, classReportFilename } from "./report-data.ts";
 import { reportTables, reportFilename, type ExportRequest } from "./report-export.ts";
 import { violationFilename, violationTables } from "./violation-export.ts";
 import { banInFilename, banInTables, banInWorkbook } from "./ban-in-export.ts";
+import { namHocMilestoneContext, saveMilestoneWeeks } from "./milestones.ts";
 import { createEnv, urlFor, view } from "./render.ts";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
@@ -293,16 +294,39 @@ app.post("/lop/:lop_id/xoa", (req, res) => {
 app.get("/nam-hoc", (req, res) => {
   const n = namId();
   const wf = weekFilter(con, n, {});
-  view(env, req, res, "nam_hoc.html", { ...ctx(), active: "nam_hoc", calendar: schoolCalendar(con, n), legacy: wf.legacy });
+  view(env, req, res, "nam_hoc.html", {
+    ...ctx(),
+    active: "nam_hoc",
+    calendar: schoolCalendar(con, n),
+    legacy: wf.legacy,
+    ...namHocMilestoneContext(con, n),
+  });
 });
 app.post("/nam-hoc", (req, res) => {
   const n = postedNam(req);
   saveSchoolCalendar(con, n, form(req));
+  flash(res, "Đã lưu lịch năm học");
   res.redirect("/nam-hoc");
 });
 app.post("/nam-hoc/gan-ngay", (req, res) => {
   const f = form(req);
   reconcileWeekDates(con, postedNam(req), Number(f.tuan_id), Number(f.revision), f.week_start);
+  res.redirect("/nam-hoc");
+});
+app.post("/nam-hoc/cong-thuc", (req, res) => {
+  const n = postedNam(req);
+  const f = form(req);
+  saveYearFormula(con, n, { hoi_hoc_double: f.hoi_hoc_double, ktm_divisor: f.ktm_divisor });
+  flash(res, "Đã lưu công thức hội học");
+  res.redirect("/nam-hoc");
+});
+app.post("/nam-hoc/moc", (req, res) => {
+  const n = postedNam(req);
+  const f = form(req);
+  const raw = (req.body as Record<string, unknown>)?.week_start;
+  const starts = raw == null || raw === "" ? [] : (Array.isArray(raw) ? raw : [raw]).map((v) => String(v));
+  saveMilestoneWeeks(con, n, Number(f.milestone_id), starts);
+  flash(res, "Đã lưu tuần hội học");
   res.redirect("/nam-hoc");
 });
 
@@ -715,8 +739,9 @@ app.get("/cong-thuc", (req, res) => {
 });
 app.post("/cong-thuc", (req, res) => {
   const n = postedNam(req);
-  saveYearFormula(con, n, form(req).ktm_divisor);
-  flash(res, "Đã lưu mẫu số TB KTM");
+  const f = form(req);
+  saveYearFormula(con, n, { ktm_divisor: f.ktm_divisor, hoi_hoc_double: f.hoi_hoc_double });
+  flash(res, "Đã lưu công thức năm học");
   res.redirect("/cong-thuc");
 });
 app.get("/ket-qua-hoc-ky", (req, res) => res.redirect(`/tong-hop?${new URLSearchParams(req.query as Record<string, string>)}`));

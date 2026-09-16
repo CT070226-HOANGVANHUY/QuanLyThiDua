@@ -3,7 +3,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { DatabaseSync } from "node:sqlite";
 import { GIO_KEYS, KTM_SCORE_KEYS, NN_KEYS, SCORE_FIELDS, type KtmDivisor } from "./scoring.ts";
-import { ensureYearFormula, importRoster2026, migrate } from "./migrate.ts";
+import { ensureHoiHocMilestones, ensureMilestoneSchema, ensureYearFormula, importRoster2026, migrate } from "./migrate.ts";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 export const DATA_DIR = path.join(ROOT, "data");
@@ -49,12 +49,21 @@ export function yearFormulaOf(con: Db, namId: number): YearFormula {
   };
 }
 
-export function saveYearFormula(con: Db, namId: number, ktmDivisor: string) {
+export function saveYearFormula(con: Db, namId: number, data: { ktm_divisor?: string; hoi_hoc_double?: string }) {
   requireActiveYear(con, namId);
   if (!tableExists(con, "year_formula")) throw new WorkflowError(500, "Chưa có bảng công thức năm học.");
-  const ktm: KtmDivisor = ktmDivisor === "si_so" ? "si_so" : "count";
-  run(con, `INSERT INTO year_formula(nam_id, ktm_divisor) VALUES (?,?)
-    ON CONFLICT(nam_id) DO UPDATE SET ktm_divisor=excluded.ktm_divisor`, [namId, ktm]);
+  const cur = yearFormulaOf(con, namId);
+  if (data.hoi_hoc_double != null && data.hoi_hoc_double !== "" &&
+      data.hoi_hoc_double !== "none" && data.hoi_hoc_double !== "hdtt_only" && data.hoi_hoc_double !== "week_xt") {
+    throw new WorkflowError(400, "Công thức nhân đôi hội học không hợp lệ.");
+  }
+  const ktm: KtmDivisor = data.ktm_divisor === "si_so" ? "si_so" : data.ktm_divisor === "count" ? "count" : cur.ktm_divisor;
+  const hoi: HoiHocDouble = data.hoi_hoc_double === "hdtt_only" || data.hoi_hoc_double === "week_xt" || data.hoi_hoc_double === "none"
+    ? data.hoi_hoc_double
+    : cur.hoi_hoc_double;
+  run(con, `INSERT INTO year_formula(nam_id, ktm_divisor, hoi_hoc_double) VALUES (?,?,?)
+    ON CONFLICT(nam_id) DO UPDATE SET ktm_divisor=excluded.ktm_divisor, hoi_hoc_double=excluded.hoi_hoc_double`,
+    [namId, ktm, hoi]);
 }
 
 export function loadSeed(): { lop: SeedClass[]; quy_che: [string, string, string, string, string][] } {
@@ -267,6 +276,8 @@ export function initDb(con: Db): void {
   const namId = Number(get(con, "SELECT id FROM nam_hoc WHERE ten=?", [ROSTER_YEAR])!.id);
   importRoster2026(con, namId);
   ensureYearFormula(con);
+  ensureMilestoneSchema(con);
+  ensureHoiHocMilestones(con);
   for (const row of seed.quy_che) {
     run(con, "INSERT INTO quy_che(stt, muc, noi_dung, diem, ghi_chu) VALUES (?,?,?,?,?)", row);
   }
@@ -328,6 +339,8 @@ export function addNamHoc(con: Db, ten: string, copyFrom?: number) {
         [src.ktm_divisor, src.hk_month_weight, src.hoi_hoc_double, src.gvcn_5_1_window, newId]);
     }
   }
+  ensureMilestoneSchema(con);
+  ensureHoiHocMilestones(con);
   return newId;
   });
 }

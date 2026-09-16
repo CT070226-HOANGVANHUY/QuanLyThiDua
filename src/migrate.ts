@@ -148,6 +148,11 @@ export const CATALOG_SCORE_KEYS: Record<string, string> = {
   thieu_sgk: "sdb_hoc_tap",
 };
 
+export const HOI_HOC_MILESTONES: { ma: string; ten: string }[] = [
+  { ma: "20-11", ten: "Hội học 20/11" },
+  { ma: "26-3", ten: "Hội học 26/3" },
+];
+
 export function ensureCatalogScoreKeys(con: Db) {
   if (!tableExists(con, "tieu_chi") || !hasColumn(con, "tieu_chi", "score_key")) return;
   const byKey = new Map<string, string[]>();
@@ -170,6 +175,51 @@ export function ensureV7Columns(con: Db) {
   addColumn(con, "su_kien", "nguon", "TEXT NOT NULL DEFAULT 'tnkt' CHECK(nguon IN ('giay','tnkt','tay'))");
 }
 
+export function ensureMilestoneSchema(con: Db) {
+  con.exec(`CREATE TABLE IF NOT EXISTS milestone (
+  id INTEGER PRIMARY KEY,
+  nam_hoc_id INTEGER NOT NULL REFERENCES nam_hoc(id) ON DELETE CASCADE,
+  loai TEXT NOT NULL CHECK(loai IN ('hoi_hoc','tam_ket')),
+  ma TEXT NOT NULL,
+  ten TEXT NOT NULL,
+  nguon_tuan TEXT NOT NULL DEFAULT 'manual' CHECK(nguon_tuan IN ('manual','union')),
+  UNIQUE(nam_hoc_id, ma)
+);
+CREATE TABLE IF NOT EXISTS milestone_week (
+  milestone_id INTEGER NOT NULL REFERENCES milestone(id) ON DELETE CASCADE,
+  tuan_id INTEGER NOT NULL REFERENCES tuan(id) ON DELETE CASCADE,
+  thu_tu INTEGER NOT NULL,
+  PRIMARY KEY(milestone_id, tuan_id)
+);
+CREATE TABLE IF NOT EXISTS milestone_entry (
+  milestone_id INTEGER NOT NULL REFERENCES milestone(id) ON DELETE CASCADE,
+  lop_id INTEGER NOT NULL REFERENCES lop(id) ON DELETE CASCADE,
+  override_rank INTEGER CHECK(override_rank > 0),
+  discipline TEXT NOT NULL DEFAULT '',
+  reward TEXT NOT NULL DEFAULT '',
+  notes TEXT NOT NULL DEFAULT '',
+  PRIMARY KEY(milestone_id, lop_id)
+);
+CREATE TABLE IF NOT EXISTS milestone_activity (
+  milestone_id INTEGER NOT NULL REFERENCES milestone(id) ON DELETE CASCADE,
+  lop_id INTEGER NOT NULL REFERENCES lop(id) ON DELETE CASCADE,
+  the_thao INTEGER CHECK (the_thao IS NULL OR the_thao >= 1),
+  van_nghe INTEGER CHECK (van_nghe IS NULL OR van_nghe >= 1),
+  PRIMARY KEY(milestone_id, lop_id)
+)`);
+}
+
+export function ensureHoiHocMilestones(con: Db) {
+  if (!tableExists(con, "milestone") || !tableExists(con, "nam_hoc")) return;
+  for (const nam of all(con, "SELECT id FROM nam_hoc")) {
+    for (const row of HOI_HOC_MILESTONES) {
+      run(con, `INSERT INTO milestone(nam_hoc_id,loai,ma,ten,nguon_tuan)
+        VALUES (?,'hoi_hoc',?,?,'manual')
+        ON CONFLICT(nam_hoc_id, ma) DO NOTHING`, [nam.id, row.ma, row.ten]);
+    }
+  }
+}
+
 function migrateV7(con: Db) {
   ensureV7Columns(con);
   ensureCatalogScoreKeys(con);
@@ -179,8 +229,18 @@ function migrateV7(con: Db) {
     WHERE nguon='tnkt' AND tieu_chi_id IS NULL AND loai IN (${placeholders})`, [...PAPER_EVENT_LOAI]);
 }
 
+function migrateV8(con: Db) {
+  ensureMilestoneSchema(con);
+  ensureHoiHocMilestones(con);
+}
+
 export function migrate(con: Db): void {
-  const steps: [number, (con: Db) => void][] = [[5, migrateV5], [6, migrateV6], [7, migrateV7]];
+  const steps: [number, (con: Db) => void][] = [
+    [5, migrateV5],
+    [6, migrateV6],
+    [7, migrateV7],
+    [8, migrateV8],
+  ];
   for (const [n, step] of steps) {
     if (userVersion(con) < n) {
       step(con);
@@ -191,4 +251,6 @@ export function migrate(con: Db): void {
   ensureYearFormula(con);
   ensureV7Columns(con);
   ensureCatalogScoreKeys(con);
+  ensureMilestoneSchema(con);
+  ensureHoiHocMilestones(con);
 }

@@ -16,6 +16,54 @@
   </div>
   <p style="margin:16px 0 0"><button type="submit" class="btn">Lưu lịch năm học</button></p>
 </form>
+{% if year_formula %}
+<div class="card">
+  <h2>Công thức hội học</h2>
+  <p class="muted">Mặc định <code>none</code> = Σ đúng 4 XT tuần (Excel 20/11/2025). Không gán sẵn tuần 7–10.</p>
+  <form method="post" action="/nam-hoc/cong-thuc" data-dirty-guard>
+    <input type="hidden" name="nam_id" value="{{ nam.id }}">
+    <div class="field">
+      <label><input type="radio" name="hoi_hoc_double" value="none" {% if year_formula.hoi_hoc_double!='hdtt_only' and year_formula.hoi_hoc_double!='week_xt' %}checked{% endif %}> <code>none</code> — tong = Σ xt_chung 4 tuần, rồi RANK trong nhóm</label>
+    </div>
+    <div class="field" style="margin-top:8px">
+      <label><input type="radio" name="hoi_hoc_double" value="hdtt_only" {% if year_formula.hoi_hoc_double=='hdtt_only' %}checked{% endif %}> <code>hdtt_only</code> — tong = Σ xt_chung + 2 × XT HĐTT đợt (nhập HĐTT trên bảng hội học)</label>
+    </div>
+    <div class="field" style="margin-top:8px">
+      <label><input type="radio" name="hoi_hoc_double" value="week_xt" {% if year_formula.hoi_hoc_double=='week_xt' %}checked{% endif %}> <code>week_xt</code> — tong = Σ (2 × xt_chung)</label>
+    </div>
+    <p class="notice">Cảnh báo: <code>week_xt</code> nhân 2 từng XT tuần nhưng RANK(2x)=RANK(x) nên hạng giống <code>none</code>. Chỉ để xem, không đổi xếp hạng. Không có <code>week_points</code>.</p>
+    <p style="margin:16px 0 0"><button type="submit" class="btn">Lưu công thức hội học</button></p>
+  </form>
+</div>
+{% endif %}
+{% for moc in hoi_hoc or [] %}
+<div class="card">
+  <h2>{{ moc.ten }}</h2>
+  <p class="muted">Gợi ý tuần Thứ Sáu–Thứ Năm giao tháng {% if moc.ma=='20-11' %}11{% else %}3{% endif %} (ngày bắt đầu hoặc kết thúc cắt tháng đó). Tick đúng 4 tuần. Không mặc định tuần 7–10.</p>
+  {% if moc.weeks and moc.weeks|length %}
+  <form method="post" action="/nam-hoc/moc" data-dirty-guard>
+    <input type="hidden" name="nam_id" value="{{ nam.id }}">
+    <input type="hidden" name="milestone_id" value="{{ moc.id }}">
+    <div class="table-wrap"><table class="data">
+      <thead><tr><th></th><th>Tuần</th><th>Khoảng</th><th></th></tr></thead>
+      <tbody>
+      {% for week in moc.weeks %}
+      <tr>
+        <td><input type="checkbox" name="week_start" value="{{ week.ngay_bd }}" {% if week.selected %}checked{% endif %}></td>
+        <td>Tuần {{ week.calendar_no }}{% if week.so_tuan and week.so_tuan != week.calendar_no %} (số {{ week.so_tuan }}){% endif %}</td>
+        <td>{{ week.ngay_bd }} → {{ week.ngay_kt }}</td>
+        <td>{% if week.suggested %}Gợi ý{% else %}Đã gán (ngoài gợi ý){% endif %}{% if week.trang_thai %} · {{ week.trang_thai }}{% endif %}</td>
+      </tr>
+      {% endfor %}
+      </tbody>
+    </table></div>
+    <p style="margin:16px 0 0"><button type="submit" class="btn">Lưu 4 tuần {{ moc.ten }}</button></p>
+  </form>
+  {% else %}
+  <p class="muted">Chưa có tuần giao tháng này. Lưu khoảng năm học trước, rồi chọn 4 tuần.</p>
+  {% endif %}
+</div>
+{% endfor %}
 <div class="card">
   <h2>Dữ liệu cũ cần đối chiếu</h2>
   <p class="muted">Giữ nguyên định danh và số tuần cũ. Gán ngày không được trùng khoảng của tuần khác. Tuần đã khóa phải mở lại trước.</p>

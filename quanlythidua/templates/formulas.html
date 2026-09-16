@@ -15,7 +15,19 @@
     <div class="field" style="margin-top:8px">
       <label><input type="radio" name="ktm_divisor" value="si_so" {% if year_formula.ktm_divisor=='si_so' %}checked{% endif %}> Sĩ số lớp (Word) — <code>diem_ktm / si_so</code></label>
     </div>
-    <p style="margin:16px 0 0"><button type="submit" class="btn">Lưu mẫu số TB KTM</button></p>
+    <h3 style="margin-top:20px">Nhân đôi hội học</h3>
+    <p>Mặc định khớp Excel 20/11/2025: cộng 4 XT tuần, không nhân HĐTT. <code>week_xt</code> không đổi hạng.</p>
+    <div class="field" style="margin-top:8px">
+      <label><input type="radio" name="hoi_hoc_double" value="none" {% if year_formula.hoi_hoc_double!='hdtt_only' and year_formula.hoi_hoc_double!='week_xt' %}checked{% endif %}> <code>none</code> — Σ 4 xt_chung rồi RANK</label>
+    </div>
+    <div class="field" style="margin-top:8px">
+      <label><input type="radio" name="hoi_hoc_double" value="hdtt_only" {% if year_formula.hoi_hoc_double=='hdtt_only' %}checked{% endif %}> <code>hdtt_only</code> — Σ xt_chung + 2 × XT HĐTT đợt</label>
+    </div>
+    <div class="field" style="margin-top:8px">
+      <label><input type="radio" name="hoi_hoc_double" value="week_xt" {% if year_formula.hoi_hoc_double=='week_xt' %}checked{% endif %}> <code>week_xt</code> — Σ (2 × xt_chung), hạng giống none</label>
+    </div>
+    <p class="notice">Cảnh báo: <code>week_xt</code> là RANK-invariant (RANK(2x)=RANK(x)). Không có <code>week_points</code>.</p>
+    <p style="margin:16px 0 0"><button type="submit" class="btn">Lưu công thức năm học</button></p>
   </form>
   <p class="muted" style="margin-top:12px">Học kỳ theo tháng: <code>Tổng XT HK = Tổng XT tháng × {{ year_formula.hk_month_weight }} + XT HĐTT</code> (mặc định ×2, xếp trên tổng đó chứ không nhân hạng tháng). Năm: XT HKI + 2 × XT HKII. Phù hiệu giả −30/HS.</p>
 </div>
