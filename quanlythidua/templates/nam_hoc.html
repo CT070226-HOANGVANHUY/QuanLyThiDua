@@ -128,6 +128,14 @@
 </div>
 {% endif %}
 <div class="card">
+  <h2>Danh sách lớp 2026–2027</h2>
+  <p>Nạp sĩ số, GVCN, loại hình từ danh sách năm học. Lớp không còn trong danh sách (ví dụ 10A7, 10A9, 10A10) sẽ <strong>ngừng áp dụng</strong>, không xóa. Tuần đã chốt hoặc công bố giữ nguyên.</p>
+  <form method="post" action="/nam-hoc/nap-roster" onsubmit="return confirm('Nạp roster 2026–2027? Lớp không còn trong danh sách sẽ ngừng áp dụng (không xóa). Tuần đã chốt/công bố không đổi.')">
+    <input type="hidden" name="nam_id" value="{{ nam.id }}">
+    <p style="margin:16px 0 0"><button type="submit" class="btn">Nạp roster 2026–2027</button></p>
+  </form>
+</div>
+<div class="card">
   <h2>Dữ liệu cũ cần đối chiếu</h2>
   <p class="muted">Giữ nguyên định danh và số tuần cũ. Gán ngày không được trùng khoảng của tuần khác. Tuần đã khóa phải mở lại trước.</p>
   {% if legacy %}

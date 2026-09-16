@@ -1,0 +1,74 @@
+{% extends "base.html" %}
+{% block title %}Sao lưu{% endblock %}
+{% block body %}
+<h1 class="page-title">Sao lưu và phục hồi</h1>
+<p class="page-sub">Sao lưu khi ứng dụng đang mở (VACUUM INTO). Phục hồi in-app chỉ có trên cửa sổ Electron.</p>
+<div class="card">
+  <h2>Sao lưu</h2>
+  {% if last_backup_at %}
+  <p>Lần gần nhất: <b>{{ last_backup_at }}</b>{% if last_backup_path %} · <code>{{ last_backup_path }}</code>{% endif %}</p>
+  {% else %}
+  <p class="muted">Chưa có sao lưu ghi nhận.</p>
+  {% endif %}
+  <form method="post" action="/sao-luu">
+    <div class="field">
+      <label for="backup-path">Thư mục hoặc file đích (để trống = data/backups/)</label>
+      <input id="backup-path" name="path" placeholder="E:\USB hoặc để trống">
+    </div>
+    <p style="margin:16px 0 0"><button type="submit" class="btn">Sao lưu</button></p>
+  </form>
+</div>
+<div class="card" id="restore-desktop" hidden>
+  <h2>Phục hồi</h2>
+  <p>Chọn file <code>.db</code> đã sao lưu. Ứng dụng kiểm tra file, thay dữ liệu hiện tại, xóa <code>-wal</code>/<code>-shm</code>, rồi khởi động lại.</p>
+  <p style="margin:16px 0 0"><button type="button" class="btn" id="restore-btn">Phục hồi từ file…</button></p>
+  <p class="muted" id="restore-status"></p>
+</div>
+<div class="card" id="restore-manual">
+  <h2>Phục hồi thủ công</h2>
+  <p>Khi mở bằng <code>chay.bat</code> không có nút Phục hồi in-app. Đóng ứng dụng rồi:</p>
+  <ol>
+    <li>Sao chép file <code>.db</code> vào <code>data/thidua.db</code> (thay file hiện tại).</li>
+    <li>Xóa <code>data/thidua.db-wal</code> và <code>data/thidua.db-shm</code> nếu có.</li>
+    <li>Nếu kèm thư mục <code>BaoCao</code>, chép đè vào thư mục <code>BaoCao</code> của ứng dụng.</li>
+    <li>Chạy lại <code>chay.bat</code>.</li>
+  </ol>
+  <p class="muted">File có <code>user_version</code> lớn hơn ứng dụng sẽ bị từ chối khi kiểm tra. File cũ hơn được nâng schema lúc mở.</p>
+</div>
+{% endblock %}
+{% block extra %}
+<script>
+(function () {
+  const desktop = window.desktop;
+  const restoreBox = document.getElementById("restore-desktop");
+  const manualBox = document.getElementById("restore-manual");
+  const status = document.getElementById("restore-status");
+  if (desktop && desktop.restoreDb && desktop.pickRestoreDb) {
+    restoreBox.hidden = false;
+    manualBox.hidden = true;
+  }
+  document.getElementById("restore-btn")?.addEventListener("click", async () => {
+    status.textContent = "";
+    try {
+      const filePath = await desktop.pickRestoreDb();
+      if (!filePath) return;
+      const res = await fetch("/sao-luu/kiem-tra", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "Accept": "application/json" },
+        body: JSON.stringify({ path: filePath }),
+      });
+      const data = await res.json();
+      if (!data.ok) {
+        status.textContent = data.error || "File không hợp lệ.";
+        return;
+      }
+      if (!confirm("Phục hồi sẽ thay dữ liệu hiện tại và khởi động lại. Tiếp tục?")) return;
+      status.textContent = "Đang phục hồi…";
+      await desktop.restoreDb(filePath);
+    } catch (error) {
+      status.textContent = error && error.message ? error.message : String(error);
+    }
+  });
+})();
+</script>
+{% endblock %}

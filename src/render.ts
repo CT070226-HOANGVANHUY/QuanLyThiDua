@@ -35,6 +35,8 @@ const ROUTES: Record<string, string> = {
   "assessments.export": "/danh-gia/export",
   "conduct.export": "/ne-nep-gvcn/xuat",
   nam_hoc: "/nam-hoc",
+  nap_roster: "/nam-hoc/nap-roster",
+  sao_luu: "/sao-luu",
   formulas: "/cong-thuc",
   class_report_word: "/bao-cao/lop/word",
   class_report_print: "/bao-cao/lop/in",

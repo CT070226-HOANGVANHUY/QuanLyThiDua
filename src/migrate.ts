@@ -287,6 +287,21 @@ export function remapGvcnGroupId(con: Db, toNamId: number, oldGroupId: unknown):
   return dst ? Number(dst.id) : null;
 }
 
+export const APP_SCHEMA_MAX = 10;
+
+export function ensureAppMeta(con: Db) {
+  con.exec(`CREATE TABLE IF NOT EXISTS app_meta (
+    key TEXT PRIMARY KEY,
+    value TEXT NOT NULL
+  )`);
+  run(con, `INSERT INTO app_meta(key, value) VALUES ('schema_max', ?)
+    ON CONFLICT(key) DO UPDATE SET value=excluded.value`, [String(APP_SCHEMA_MAX)]);
+}
+
+function migrateV10(con: Db) {
+  ensureAppMeta(con);
+}
+
 export function migrate(con: Db): void {
   const steps: [number, (con: Db) => void][] = [
     [5, migrateV5],
@@ -294,6 +309,7 @@ export function migrate(con: Db): void {
     [7, migrateV7],
     [8, migrateV8],
     [9, migrateV9],
+    [10, migrateV10],
   ];
   for (const [n, step] of steps) {
     if (userVersion(con) < n) {
@@ -308,4 +324,5 @@ export function migrate(con: Db): void {
   ensureMilestoneSchema(con);
   ensureHoiHocMilestones(con);
   ensureGvcnRatioGroups(con);
+  ensureAppMeta(con);
 }

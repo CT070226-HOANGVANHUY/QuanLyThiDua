@@ -125,6 +125,8 @@ import {
   saveMilestoneEntries,
   saveMilestoneWeeks,
 } from "./milestones.ts";
+import { checkRestoreCandidate, lastBackupInfo, vacuumBackup } from "./backup.ts";
+import { importRoster2026 } from "./migrate.ts";
 import { createEnv, urlFor, view } from "./render.ts";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
@@ -138,6 +140,7 @@ initPlan(con);
 const env = createEnv(path.join(ROOT, "quanlythidua", "templates"));
 
 app.use(express.urlencoded({ extended: true }));
+app.use(express.json());
 app.use(cookieParser());
 app.use("/static", express.static(path.join(ROOT, "quanlythidua", "static")));
 
@@ -364,6 +367,12 @@ app.post("/nam-hoc/tam-ket", (req, res) => {
   flash(res, "Đã tạo mốc 8 tuần");
   res.redirect("/nam-hoc");
 });
+app.post("/nam-hoc/nap-roster", (req, res) => {
+  const n = postedNam(req);
+  transaction(con, () => importRoster2026(con, n));
+  flash(res, "Đã nạp roster 2026–2027. Lớp không còn trong danh sách đã ngừng áp dụng.");
+  res.redirect("/lop");
+});
 
 app.get("/hoi-hoc", (req, res) => {
   const n = namId();
@@ -401,6 +410,38 @@ app.post("/hoi-hoc/ghi-chu", (req, res) => {
     milestone_id: String(milestoneId),
     view: f.view || "official",
   })}`);
+});
+
+function formatBackupAt(iso?: string) {
+  if (!iso) return "";
+  const d = new Date(iso);
+  return Number.isNaN(d.getTime()) ? iso : d.toLocaleString("vi-VN");
+}
+
+app.get("/sao-luu", (req, res) => {
+  const info = lastBackupInfo(con);
+  view(env, req, res, "sao_luu.html", {
+    ...ctx(),
+    active: "sao_luu",
+    last_backup_at: formatBackupAt(info.at),
+    last_backup_path: info.path || "",
+  });
+});
+app.post("/sao-luu", (req, res) => {
+  const dest = vacuumBackup(con, form(req).path);
+  flash(res, `Đã sao lưu: ${dest}`);
+  res.redirect("/sao-luu");
+});
+app.post("/sao-luu/kiem-tra", (req, res) => {
+  const body = req.body as Record<string, unknown>;
+  const filePath = String(body?.path ?? body?.file ?? "").trim();
+  try {
+    const result = checkRestoreCandidate(filePath);
+    res.json({ ok: true, ...result });
+  } catch (error) {
+    const status = error instanceof WorkflowError ? error.status : 400;
+    res.status(status).json({ ok: false, error: error instanceof Error ? error.message : String(error) });
+  }
 });
 
 function reportPage(
