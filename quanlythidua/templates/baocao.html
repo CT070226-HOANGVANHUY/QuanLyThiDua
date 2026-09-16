@@ -2,8 +2,23 @@
 {% block title %}Báo cáo và xuất{% endblock %}
 {% block body %}
 <h1 class="page-title">Báo cáo và xuất</h1>
-<p class="page-sub">Word/In cho từng lớp. Excel cho bảng toàn trường, nhóm hoặc lớp — hạng vẫn tính trên toàn nhóm.</p>
+<p class="page-sub">Word/In cho từng lớp. Excel lỗi HS và Ban in tuần. Bảng toàn trường / nhóm / lớp — hạng vẫn tính trên toàn nhóm.</p>
 <div class="two">
+  <div class="card">
+    <h2>Lỗi học sinh theo lớp</h2>
+    <form class="form-grid" method="get" action="{{ url_for('xuat_loi_hs') }}">
+      <div class="field"><label>Tuần</label><select name="tuan_id">{% for week in tuans %}<option value="{{ week.id }}">Tuần {{ week.so_tuan }} · {{ week.ngay_bd or 'chưa gán ngày' }}</option>{% endfor %}</select></div>
+      <div class="toolbar"><button class="btn-gold" type="submit">Tải Excel lỗi HS</button></div>
+    </form>
+  </div>
+  <div class="card">
+    <h2>Ban in tuần</h2>
+    <form class="form-grid" method="get" action="{{ url_for('xuat_ban_in') }}">
+      <div class="field"><label>Tuần</label><select name="tuan_id">{% for week in tuans %}<option value="{{ week.id }}">Tuần {{ week.so_tuan }} · {{ week.ngay_bd or 'chưa gán ngày' }}</option>{% endfor %}</select></div>
+      <div class="field"><label>Định dạng</label><select name="format"><option value="xlsx">Excel</option><option value="print">Bản in</option></select></div>
+      <div class="toolbar"><button class="btn-gold" type="submit">Tạo Ban in</button></div>
+    </form>
+  </div>
   <div class="card">
     <h2>Báo cáo chi đoàn</h2>
     <form class="form-grid" method="get" action="/bao-cao/lop/word">

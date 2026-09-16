@@ -24,6 +24,8 @@ const ROUTES: Record<string, string> = {
   xep: "/ket-qua-tuan",
   xuat_tuan: "/xuat/tuan/:tuan_id",
   xuat_tuan_form: "/xuat/tuan",
+  xuat_loi_hs: "/xuat/loi-hs",
+  xuat_ban_in: "/xuat/ban-in",
   baocao: "/bao-cao",
   quyche: "/quy-che",
   "periods.index": "/tong-hop",

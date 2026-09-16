@@ -9,6 +9,16 @@ export type Table = {
   notes?: string[];
 };
 
+export function applySafeValue(cell: ExcelJS.Cell, v: unknown) {
+  if (typeof v === "string" && /^[=+\-@]/.test(v)) {
+    cell.value = v;
+    cell.numFmt = "@";
+    return;
+  }
+  cell.value = v == null || Array.isArray(v) || typeof v === "object" ? null : (v as string | number | boolean);
+  if (typeof v === "number" && !Number.isInteger(v)) cell.numFmt = "0.0000";
+}
+
 export async function workbookBuffer(tables: Table[]) {
   const wb = new ExcelJS.Workbook();
   wb.creator = "Quản lý thi đua THPT Giao Thủy C";
@@ -49,17 +59,10 @@ export async function workbookBuffer(tables: Table[]) {
       const rowIdx = headerRow + 1 + r;
       cols.forEach(([key], c) => {
         const cell = ws.getCell(rowIdx, c + 1);
-        const v = record[key];
-        if (typeof v === "string" && /^[=+\-@]/.test(v)) {
-          cell.value = v;
-          cell.numFmt = "@";
-        } else {
-          cell.value = v == null || Array.isArray(v) || typeof v === "object" ? null : (v as string | number | boolean);
-        }
+        applySafeValue(cell, record[key]);
         cell.border = { top: { style: "thin" }, left: { style: "thin" }, bottom: { style: "thin" }, right: { style: "thin" } };
         if ((r + 1) % 2 === 0) cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FFEDF3F8" } };
         cell.alignment = { vertical: "top", wrapText: true };
-        if (typeof v === "number" && !Number.isInteger(v)) cell.numFmt = "0.0000";
       });
     });
     const last = headerRow + Math.max(1, table.rows.length);

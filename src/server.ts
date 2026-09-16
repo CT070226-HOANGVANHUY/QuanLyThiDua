@@ -103,6 +103,8 @@ import { documentBuffer } from "./docx-export.ts";
 import { classReportDocx } from "./class-report-export.ts";
 import { buildClassReport, classReportFilename } from "./report-data.ts";
 import { reportTables, reportFilename, type ExportRequest } from "./report-export.ts";
+import { violationFilename, violationTables } from "./violation-export.ts";
+import { banInFilename, banInTables, banInWorkbook } from "./ban-in-export.ts";
 import { createEnv, urlFor, view } from "./render.ts";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
@@ -595,6 +597,41 @@ app.get("/xuat/bao-cao", async (req, res) => {
   if (format === "docx") return sendAttachment(res, await documentBuffer(tables), "application/vnd.openxmlformats-officedocument.wordprocessingml.document", filename);
   if (format !== "xlsx") throw new WorkflowError(400, "Định dạng xuất không hợp lệ.");
   return sendAttachment(res, await workbookBuffer(tables), "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", filename);
+});
+app.get("/xuat/loi-hs", async (req, res) => {
+  const n = namId();
+  const tuanId = Number(req.query.tuan_id);
+  if (!Number.isSafeInteger(tuanId) || tuanId < 1) throw new WorkflowError(400, "Tuần xuất không hợp lệ.");
+  const week = requireOwned(con, "tuan", tuanId, n);
+  const tables = violationTables(con, n, tuanId);
+  return sendAttachment(
+    res,
+    await workbookBuffer(tables),
+    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    violationFilename(tuanId, week),
+  );
+});
+app.get("/xuat/ban-in", async (req, res) => {
+  const n = namId();
+  const tuanId = Number(req.query.tuan_id);
+  if (!Number.isSafeInteger(tuanId) || tuanId < 1) throw new WorkflowError(400, "Tuần xuất không hợp lệ.");
+  const week = requireOwned(con, "tuan", tuanId, n);
+  const format = String(req.query.format || "xlsx");
+  if (format === "print") {
+    return view(env, req, res, "report_print.html", {
+      tables: banInTables(con, n, tuanId),
+      ban_in: true,
+      generated_at: new Date().toLocaleString("vi-VN"),
+      desktop: desktopFlag(),
+    });
+  }
+  if (format !== "xlsx") throw new WorkflowError(400, "Định dạng xuất không hợp lệ.");
+  return sendAttachment(
+    res,
+    await banInWorkbook(con, n, tuanId),
+    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    banInFilename(week),
+  );
 });
 app.get("/tong-hop/xuat", (req, res) => {
   const q = new URLSearchParams(req.query as Record<string, string>);
