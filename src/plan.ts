@@ -1,5 +1,5 @@
 import { addColumn, all, get, getTuan, inTransaction, listLop, listTuan, requireActiveYear, requireOwned, run, SAMPLE_WEEK_NOTE, tableExists, transaction, upsertTuan, WorkflowError, yearFormulaOf, type Db, type Dict } from "./db.ts";
-import { migrate } from "./migrate.ts";
+import { CATALOG_SCORE_KEYS, migrate } from "./migrate.ts";
 import { GIO_KEYS, KTM_SCORE_KEYS, NN_KEYS, competitionRanks, scoreAll, type ClassResult, type Row } from "./scoring.ts";
 
 export const TT_NHAP = "nhap";
@@ -235,10 +235,10 @@ export function initPlan(con: Db) {
   });
   for (const nam of all(con, "SELECT id FROM nam_hoc")) {
     for (const [ma, ten, nhom, diem, donVi] of SEED) {
-      const scoreKey = ma === "thai_do" ? "sdb_hoc_tap"
-        : ma === "van_nghe" ? "cong_ne_nep"
-        : ma === "phu_hieu_gia" || ma === "phu_hieu_quen" ? "phu_hieu"
-        : [...NN_KEYS, ...GIO_KEYS, ...KTM_SCORE_KEYS, "ktm_5_6"].includes(ma) ? ma : null;
+      const scoreKey = CATALOG_SCORE_KEYS[ma]
+        ?? (ma === "thai_do" ? "sdb_hoc_tap"
+          : ma === "van_nghe" ? "cong_ne_nep"
+          : [...NN_KEYS, ...GIO_KEYS, ...KTM_SCORE_KEYS, "ktm_5_6"].includes(ma) ? ma : null);
       run(con, `INSERT INTO tieu_chi(nam_hoc_id,ma,ten,nhom,diem,don_vi,ap_dung,score_key) VALUES (?,?,?,?,?,?,1,?)
         ON CONFLICT(nam_hoc_id,ma) DO NOTHING`, [nam.id, ma, ten, nhom, diem, donVi, scoreKey]);
     }
@@ -252,7 +252,6 @@ export function initPlan(con: Db) {
       AND NOT EXISTS(SELECT 1 FROM cham_dong WHERE cham_dong.tieu_chi_id=tieu_chi.id)
       AND NOT EXISTS(SELECT 1 FROM su_kien WHERE su_kien.tieu_chi_id=tieu_chi.id)`);
   }
-  run(con, "UPDATE tieu_chi SET score_key='phu_hieu' WHERE ma IN ('phu_hieu_quen','phu_hieu_gia') AND (score_key IS NULL OR score_key='')");
   migrate(con);
 }
 
@@ -457,6 +456,18 @@ export function listTieuChi(con: Db, namId: number, onlyOn = false) {
     ? "SELECT * FROM tieu_chi WHERE nam_hoc_id=? AND ap_dung=1 ORDER BY nhom, id"
     : "SELECT * FROM tieu_chi WHERE nam_hoc_id=? ORDER BY nhom, id";
   return all(con, sql, [namId]);
+}
+
+export function mappedNnScoreKey(scoreKey: unknown) {
+  const key = String(scoreKey || "");
+  return NN_KEYS.includes(key) || key === "cong_ne_nep";
+}
+
+const PAPER_CATALOG_MA = new Set(["nghi_hoc", "di_muon", "trang_phuc", "phu_hieu", "vp_khac", "van_nghe"]);
+
+export function catalogTieuChi(con: Db, namId: number) {
+  return listTieuChi(con, namId, true).filter((criterion) =>
+    mappedNnScoreKey(criterion.score_key) && !PAPER_CATALOG_MA.has(String(criterion.ma)));
 }
 
 export function upsertTieuChi(con: Db, namId: number, data: Dict) {
@@ -796,6 +807,7 @@ function insertSuKien(con: Db, namId: number, baoCaoId: number, loai: string, ro
     const tieuChiId = Number(row.tieu_chi_id);
     const criterion = get(con, "SELECT * FROM tieu_chi WHERE id=? AND nam_hoc_id=? AND ap_dung=1", [tieuChiId, namId]);
     if (!criterion) throw new WorkflowError(400, "Tiêu chí không hợp lệ.");
+    if (!mappedNnScoreKey(criterion.score_key)) throw new WorkflowError(400, "Tiêu chí chưa ánh xạ.");
     const storedLoai = String(criterion.score_key || "vp");
     run(con, `INSERT INTO su_kien(bao_cao_id,loai,ho_ten,ngay,so_luong,tiet_mon,noi_dung,ghi_chu,tieu_chi_id,tap_the,gvcn_phat_hien,nguon)
       VALUES (?,?,?,?,?,?,?,?,?,?,?,'tnkt')`,

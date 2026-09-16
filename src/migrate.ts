@@ -138,6 +138,30 @@ function migrateV6(con: Db) {
 
 const PAPER_EVENT_LOAI = ["di_muon", "trang_phuc", "phu_hieu", "vp_khac", "thai_do"] as const;
 
+/** Named catalog variants whose SEED ma is not itself an NN_KEYS score_key. */
+export const CATALOG_SCORE_KEYS: Record<string, string> = {
+  phu_hieu_quen: "phu_hieu",
+  phu_hieu_gia: "phu_hieu",
+  ve_sinh_binh_nuoc_muon: "ve_sinh",
+  ve_sinh_thieu_gay_coc: "ve_sinh",
+  chong_doi: "sdb_y_thuc",
+  thieu_sgk: "sdb_hoc_tap",
+};
+
+export function ensureCatalogScoreKeys(con: Db) {
+  if (!tableExists(con, "tieu_chi") || !hasColumn(con, "tieu_chi", "score_key")) return;
+  const byKey = new Map<string, string[]>();
+  for (const [ma, key] of Object.entries(CATALOG_SCORE_KEYS)) {
+    const group = byKey.get(key) ?? [];
+    group.push(ma);
+    byKey.set(key, group);
+  }
+  for (const [key, mas] of byKey) {
+    run(con, `UPDATE tieu_chi SET score_key=?
+      WHERE ma IN (${mas.map(() => "?").join(",")}) AND (score_key IS NULL OR score_key='')`, [key, ...mas]);
+  }
+}
+
 export function ensureV7Columns(con: Db) {
   if (!tableExists(con, "su_kien")) return;
   addColumn(con, "su_kien", "tieu_chi_id", "INTEGER REFERENCES tieu_chi(id)");
@@ -148,6 +172,7 @@ export function ensureV7Columns(con: Db) {
 
 function migrateV7(con: Db) {
   ensureV7Columns(con);
+  ensureCatalogScoreKeys(con);
   if (!tableExists(con, "su_kien")) return;
   const placeholders = PAPER_EVENT_LOAI.map(() => "?").join(",");
   run(con, `UPDATE su_kien SET nguon='giay'
@@ -165,4 +190,5 @@ export function migrate(con: Db): void {
   ensureV5Columns(con);
   ensureYearFormula(con);
   ensureV7Columns(con);
+  ensureCatalogScoreKeys(con);
 }

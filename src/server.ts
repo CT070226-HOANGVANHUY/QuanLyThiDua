@@ -37,6 +37,7 @@ import { tuanLabel } from "./logic.ts";
 import {
   LOAI_NN,
   TT_LABEL,
+  catalogTieuChi,
   deleteTieuChi,
   diemCoSo,
   initPlan,
@@ -342,7 +343,7 @@ function reportPage(
     bc: loaded.bc ?? {}, nghi: loaded.nghi, sk, loai_nn: LOAI_NN,
     thai_do: loaded.sk.filter((event) => event.loai === "thai_do" && !isCatalog(event)),
     vp: loaded.sk.filter((event) => isCatalog(event) || event.loai === "vp"),
-    tieu_chi_nn: listTieuChi(con, n, true).filter((criterion) => criterion.nhom === "ne_nep"),
+    tieu_chi_nn: catalogTieuChi(con, n),
     errors: submitted?.parsed.errors ?? {}, error_summary: submitted?.message || "",
   });
 }

@@ -5,7 +5,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
 import { connect, initDb, get, all, run, setActiveNam, transaction } from '../src/db.ts';
-import { initPlan, saveReport, saveChamTay, loadReport, deleteTieuChi, parseReport, scoreWeek, setTuanStatus } from '../src/plan.ts';
+import { initPlan, saveReport, saveChamTay, loadReport, deleteTieuChi, parseReport, scoreWeek, setTuanStatus, catalogTieuChi } from '../src/plan.ts';
 import { initPeriods, periodTable } from '../src/periods.ts';
 import { feed, initConduct, savePenalty } from '../src/conduct.ts';
 import { buildClassReport } from '../src/report-data.ts';
@@ -351,6 +351,33 @@ test('report revision prevents stale overwrite and complete-class does not requi
       WHERE c.tuan_id=? AND c.lop_id=? AND c.nguon='auto'`, [week.id, 1]);
     assert.ok(auto.some((row) => row.ma === 'phu_hieu_gia'));
     assert.equal(auto.filter((row) => row.ma === 'phu_hieu').length, 0);
+  } finally { db.close(); }
+});
+
+test('TNKT catalog maps leftover SEED keys, omits paper prefixes, and rejects unmapped tieu_chi_id', () => {
+  const db = calendarFixture();
+  try {
+    run(db, "INSERT INTO lop(id,nam_hoc_id,ten,khoi,nhom,si_so) VALUES (1,1,'10A1',10,1,30)");
+    const week = transaction(db, () => resolveWeekForWrite(db, 1, { week_start: '2026-09-11' }));
+    assert.equal(get(db, "SELECT score_key FROM tieu_chi WHERE nam_hoc_id=1 AND ma='ve_sinh_binh_nuoc_muon'")?.score_key, 've_sinh');
+    assert.equal(get(db, "SELECT score_key FROM tieu_chi WHERE nam_hoc_id=1 AND ma='ve_sinh_thieu_gay_coc'")?.score_key, 've_sinh');
+    assert.equal(get(db, "SELECT score_key FROM tieu_chi WHERE nam_hoc_id=1 AND ma='chong_doi'")?.score_key, 'sdb_y_thuc');
+    assert.equal(get(db, "SELECT score_key FROM tieu_chi WHERE nam_hoc_id=1 AND ma='thieu_sgk'")?.score_key, 'sdb_hoc_tap');
+    const catalogMa = catalogTieuChi(db, 1).map((row) => String(row.ma));
+    assert.ok(catalogMa.includes('phu_hieu_gia'));
+    assert.ok(catalogMa.includes('chong_doi'));
+    assert.ok(catalogMa.includes('thieu_sgk'));
+    assert.ok(catalogMa.includes('ve_sinh_binh_nuoc_muon'));
+    for (const ma of ['nghi_hoc', 'di_muon', 'trang_phuc', 'phu_hieu', 'vp_khac', 'van_nghe']) {
+      assert.equal(catalogMa.includes(ma), false, ma);
+    }
+    run(db, "INSERT INTO tieu_chi(nam_hoc_id,ma,ten,nhom,diem,don_vi,ap_dung) VALUES (1,'unmapped_x','X','ne_nep',-1,'HS',1)");
+    const unmapped = Number(get(db, "SELECT id FROM tieu_chi WHERE nam_hoc_id=1 AND ma='unmapped_x'")?.id);
+    const parsed = parseReport(reportForm({
+      vp_0_tieu_chi_id: String(unmapped), vp_0_ho_ten: 'A', vp_0_ngay: '2026-09-11',
+    }), week);
+    assert.throws(() => saveReport(db, 1, { tuan_id: Number(week.id) }, 1, 0, parsed, 'save'), { status: 400 });
+    assert.equal(get(db, 'SELECT COUNT(*) AS n FROM bao_cao_tuan')?.n, 0);
   } finally { db.close(); }
 });
 
