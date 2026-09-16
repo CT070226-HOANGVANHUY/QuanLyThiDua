@@ -234,12 +234,66 @@ function migrateV8(con: Db) {
   ensureHoiHocMilestones(con);
 }
 
+export const GVCN_GROUP_SEED: readonly [ma: string, ten: string, nguong: number][] = [
+  ["A", "Nhóm A — ngưỡng 5", 5],
+  ["B", "Nhóm B — ngưỡng 7", 7],
+  ["C", "Nhóm C — ngưỡng 10", 10],
+];
+
+export function ensureGvcnRatioGroups(con: Db, namId?: number) {
+  con.exec(`CREATE TABLE IF NOT EXISTS gvcn_ratio_group (
+    id INTEGER PRIMARY KEY,
+    nam_hoc_id INTEGER NOT NULL REFERENCES nam_hoc(id) ON DELETE CASCADE,
+    ma TEXT NOT NULL,
+    ten TEXT NOT NULL,
+    nguong REAL NOT NULL CHECK(nguong > 0),
+    UNIQUE(nam_hoc_id, ma)
+  )`);
+  if (tableExists(con, "lop")) addColumn(con, "lop", "gvcn_group_id", "INTEGER");
+  if (tableExists(con, "week_class")) addColumn(con, "week_class", "gvcn_group_id", "INTEGER");
+  if (!tableExists(con, "nam_hoc")) return;
+  const years = namId != null
+    ? all(con, "SELECT id FROM nam_hoc WHERE id=?", [namId])
+    : all(con, "SELECT id FROM nam_hoc");
+  for (const nam of years) {
+    for (const [ma, ten, nguong] of GVCN_GROUP_SEED) {
+      run(con, `INSERT INTO gvcn_ratio_group(nam_hoc_id, ma, ten, nguong) VALUES (?,?,?,?)
+        ON CONFLICT(nam_hoc_id, ma) DO NOTHING`, [nam.id, ma, ten, nguong]);
+    }
+  }
+}
+
+function migrateV9(con: Db) {
+  ensureGvcnRatioGroups(con);
+}
+
+export function copyGvcnGroups(con: Db, fromNamId: number, toNamId: number) {
+  ensureGvcnRatioGroups(con, toNamId);
+  if (!tableExists(con, "gvcn_ratio_group")) return;
+  for (const g of all(con, "SELECT ma, ten, nguong FROM gvcn_ratio_group WHERE nam_hoc_id=?", [fromNamId])) {
+    run(con, `INSERT INTO gvcn_ratio_group(nam_hoc_id, ma, ten, nguong) VALUES (?,?,?,?)
+      ON CONFLICT(nam_hoc_id, ma) DO UPDATE SET ten=excluded.ten, nguong=excluded.nguong`,
+      [toNamId, g.ma, g.ten, g.nguong]);
+  }
+}
+
+export function remapGvcnGroupId(con: Db, toNamId: number, oldGroupId: unknown): number | null {
+  if (oldGroupId == null || oldGroupId === "") return null;
+  const id = Number(oldGroupId);
+  if (!Number.isSafeInteger(id) || id <= 0) return null;
+  const src = get(con, "SELECT ma FROM gvcn_ratio_group WHERE id=?", [id]);
+  if (!src) return null;
+  const dst = get(con, "SELECT id FROM gvcn_ratio_group WHERE nam_hoc_id=? AND ma=?", [toNamId, src.ma]);
+  return dst ? Number(dst.id) : null;
+}
+
 export function migrate(con: Db): void {
   const steps: [number, (con: Db) => void][] = [
     [5, migrateV5],
     [6, migrateV6],
     [7, migrateV7],
     [8, migrateV8],
+    [9, migrateV9],
   ];
   for (const [n, step] of steps) {
     if (userVersion(con) < n) {
@@ -253,4 +307,5 @@ export function migrate(con: Db): void {
   ensureCatalogScoreKeys(con);
   ensureMilestoneSchema(con);
   ensureHoiHocMilestones(con);
+  ensureGvcnRatioGroups(con);
 }

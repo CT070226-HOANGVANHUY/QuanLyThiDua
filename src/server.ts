@@ -18,6 +18,7 @@ import {
   listQuyChe,
   listTuan,
   loaiHinhMismatch,
+  saveGvcnWindow,
   saveYearFormula,
   setActiveNam,
   yearFormulaOf,
@@ -91,10 +92,16 @@ import {
   savePeriodEntries,
 } from "./periods.ts";
 import {
+  GVCN_HINT,
   MODE_LABELS,
   conductTables,
   feed,
+  gvcnScores,
   initConduct,
+  listGvcnGroups,
+  listHeavyEvents,
+  saveGvcnGroup,
+  saveGvcnPhatHien,
   savePenalty,
   saveRatio,
 } from "./conduct.ts";
@@ -270,6 +277,8 @@ app.get("/lop", (req, res) => {
     ...ctx(),
     active: "lop",
     lops,
+    gvcn_groups: listGvcnGroups(con, n),
+    gvcn_hint: GVCN_HINT,
     loai_hinh_mismatch: loaiHinhMismatch(con, n),
     leftover_reports: leftoverClassReports(con, n),
     sample_week: sampleWeek(con, n),
@@ -288,6 +297,7 @@ app.post("/lop/luu", (req, res) => {
     nu: f.nu === "" ? 0 : Number(f.nu),
     kt: f.kt === "" ? 0 : Number(f.kt),
     ap_dung: f.ap_dung === "0" ? 0 : 1,
+    gvcn_group_id: f.gvcn_group_id,
   });
   flash(res, "Đã lưu lớp");
   res.redirect("/lop");
@@ -945,7 +955,8 @@ app.post("/tong-hop/ghi-chu", (req, res) => {
 
 app.all("/ne-nep-gvcn", (req, res) => {
   const hk = Number(req.query.hk || 1);
-  const mode = String(req.query.mode || "teacher");
+  const mode = String(req.query.mode || "gvcn");
+  const resultView = String(req.query.view || "official") === "preview" ? "preview" : "official";
   if (![1, 2].includes(hk) || !MODE_LABELS[mode]) return res.status(400).send("Không hợp lệ");
   const n = req.method === "POST" ? postedNam(req) : namId();
   const { weeks, rows } = feed(con, n, hk);
@@ -957,6 +968,7 @@ app.all("/ne-nep-gvcn", (req, res) => {
         requireActiveYear(con, n);
         if (f.hk !== String(hk)) throw new WorkflowError(400, "Học kỳ không khớp.");
         if (f.action === "ratios_bulk") {
+          if (mode !== "classic" && mode !== "teacher") throw new WorkflowError(400, "Mô hình nề nếp không hợp lệ.");
           for (const key of Object.keys(f)) {
             if (key.startsWith("ratio_")) requireOwned(con, "lop", Number(key.slice(6)), n);
           }
@@ -976,35 +988,61 @@ app.all("/ne-nep-gvcn", (req, res) => {
             const text = (f[`penalty_${wid}`] ?? "").trim();
             savePenalty(con, n, hk, Number(f.lop_id), Number(wid), text ? Number(text) : null, f[`source_${wid}`] ?? "");
           }
+        } else if (f.action === "groups_bulk") {
+          for (const key of Object.keys(f)) {
+            if (key.startsWith("group_")) requireOwned(con, "lop", Number(key.slice(6)), n);
+          }
+          for (const lopId of Object.keys(classes)) {
+            const text = (f[`group_${lopId}`] ?? "").trim();
+            saveGvcnGroup(con, n, Number(lopId), text ? Number(text) : null);
+          }
+        } else if (f.action === "phat_hien_bulk") {
+          const list = ([] as string[]).concat((req.body.event_id as string[] | string | undefined) ?? []);
+          for (const id of list) {
+            saveGvcnPhatHien(con, n, Number(id), f[`phat_hien_${id}`] === "1" ? 1 : 0);
+          }
+        } else if (f.action === "window") {
+          saveGvcnWindow(con, n, f.gvcn_5_1_window);
         } else throw new Error("Thao tác không hợp lệ.");
       });
-      flash(res, "Đã lưu dữ liệu nề nếp riêng.");
-      return res.redirect(urlFor("conduct.index", { hk, mode, lop_id: f.lop_id || undefined }));
+      flash(res, f.action === "window" ? "Đã lưu cửa sổ 5.1." : "Đã lưu công tác chủ nhiệm.");
+      return res.redirect(urlFor("conduct.index", { hk, mode, view: resultView, lop_id: f.lop_id || undefined }));
     } catch (e) {
       if (e instanceof WorkflowError) throw e;
       throw new WorkflowError(400, e instanceof Error ? e.message : String(e));
     }
   }
-  const tables = conductTables(con, n, hk);
+  const tables = conductTables(con, n, hk, resultView);
+  const scored = gvcnScores(con, n, hk, resultView);
   const selectedId = req.query.lop_id ? Number(req.query.lop_id) : undefined;
   const selected = selectedId ? classes[selectedId] : rows[0];
-  const table = tables[{ data: 0, classic: 1, teacher: 2 }[mode] ?? 2];
+  const table = tables[{ gvcn: 0, data: 1, classic: 2, teacher: 3 }[mode] ?? 0];
+  const groups = listGvcnGroups(con, n);
   view(env, req, res, "conduct.html", {
     ...ctx(),
     active: "conduct",
     hk,
     mode,
+    resultView,
     mode_labels: MODE_LABELS,
     tables,
     table,
     weeks,
     raw_rows: rows,
+    gvcn_rows: scored.rows,
+    gvcn_window: scored.window,
+    official_ready: scored.officialReady,
+    gvcn_groups: groups,
+    gvcn_hint: GVCN_HINT,
+    heavy_events: listHeavyEvents(con, n, hk),
+    unassigned: scored.rows.filter((row) => row.missing_group).length,
     selected,
   });
 });
 app.get("/ne-nep-gvcn/xuat", async (req, res) => {
   const hk = Number(req.query.hk || 1);
-  const buf = await workbookBuffer(conductTables(con, namId(), hk) as never);
+  const resultView = String(req.query.view || "official") === "preview" ? "preview" : "official";
+  const buf = await workbookBuffer(conductTables(con, namId(), hk, resultView) as never);
   res.setHeader("Content-Type", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
   res.setHeader("Content-Disposition", `attachment; filename="Ne_nep_GVCN_HK${hk}.xlsx"`);
   res.send(buf);

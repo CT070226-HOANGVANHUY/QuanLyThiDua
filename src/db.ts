@@ -3,7 +3,16 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { DatabaseSync } from "node:sqlite";
 import { GIO_KEYS, KTM_SCORE_KEYS, NN_KEYS, SCORE_FIELDS, type KtmDivisor } from "./scoring.ts";
-import { ensureHoiHocMilestones, ensureMilestoneSchema, ensureYearFormula, importRoster2026, migrate } from "./migrate.ts";
+import {
+  copyGvcnGroups,
+  ensureGvcnRatioGroups,
+  ensureHoiHocMilestones,
+  ensureMilestoneSchema,
+  ensureYearFormula,
+  importRoster2026,
+  migrate,
+  remapGvcnGroupId,
+} from "./migrate.ts";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 export const DATA_DIR = path.join(ROOT, "data");
@@ -64,6 +73,25 @@ export function saveYearFormula(con: Db, namId: number, data: { ktm_divisor?: st
   run(con, `INSERT INTO year_formula(nam_id, ktm_divisor, hoi_hoc_double) VALUES (?,?,?)
     ON CONFLICT(nam_id) DO UPDATE SET ktm_divisor=excluded.ktm_divisor, hoi_hoc_double=excluded.hoi_hoc_double`,
     [namId, ktm, hoi]);
+}
+
+export function saveGvcnWindow(con: Db, namId: number, window: string) {
+  requireActiveYear(con, namId);
+  if (!tableExists(con, "year_formula")) throw new WorkflowError(500, "Chưa có bảng công thức năm học.");
+  const value: Gvcn51Window = window === "weekly" ? "weekly" : "semester";
+  run(con, `INSERT INTO year_formula(nam_id, gvcn_5_1_window) VALUES (?,?)
+    ON CONFLICT(nam_id) DO UPDATE SET gvcn_5_1_window=excluded.gvcn_5_1_window`, [namId, value]);
+}
+
+export function parseGvcnGroupId(con: Db, namId: number, raw: unknown): number | null {
+  if (raw == null || raw === "") return null;
+  const id = Number(raw);
+  if (!Number.isSafeInteger(id) || id <= 0) throw new WorkflowError(400, "Nhóm chủ nhiệm không hợp lệ.");
+  if (!tableExists(con, "gvcn_ratio_group") ||
+      !get(con, "SELECT id FROM gvcn_ratio_group WHERE id=? AND nam_hoc_id=?", [id, namId])) {
+    throw new WorkflowError(400, "Nhóm chủ nhiệm không thuộc năm học này.");
+  }
+  return id;
 }
 
 export function loadSeed(): { lop: SeedClass[]; quy_che: [string, string, string, string, string][] } {
@@ -278,6 +306,7 @@ export function initDb(con: Db): void {
   ensureYearFormula(con);
   ensureMilestoneSchema(con);
   ensureHoiHocMilestones(con);
+  ensureGvcnRatioGroups(con, namId);
   for (const row of seed.quy_che) {
     run(con, "INSERT INTO quy_che(stt, muc, noi_dung, diem, ghi_chu) VALUES (?,?,?,?,?)", row);
   }
@@ -303,7 +332,17 @@ export function addNamHoc(con: Db, ten: string, copyFrom?: number) {
   if (!ten.trim()) throw new WorkflowError(400, "Tên năm học không được trống.");
   if (copyFrom) requireActiveYear(con, copyFrom);
   run(con, "INSERT INTO nam_hoc(ten, active) VALUES (?, 0)", [ten]);
-  const newId = get(con, "SELECT id FROM nam_hoc WHERE ten=?", [ten])!.id;
+  const newId = Number(get(con, "SELECT id FROM nam_hoc WHERE ten=?", [ten])!.id);
+  if (tableExists(con, "year_formula")) {
+    run(con, "INSERT OR IGNORE INTO year_formula(nam_id) VALUES (?)", [newId]);
+    if (copyFrom) {
+      const src = yearFormulaOf(con, copyFrom);
+      run(con, `UPDATE year_formula SET ktm_divisor=?, hk_month_weight=?, hoi_hoc_double=?, gvcn_5_1_window=? WHERE nam_id=?`,
+        [src.ktm_divisor, src.hk_month_weight, src.hoi_hoc_double, src.gvcn_5_1_window, newId]);
+    }
+  }
+  ensureGvcnRatioGroups(con, newId);
+  if (copyFrom) copyGvcnGroups(con, copyFrom, newId);
   if (copyFrom) {
     for (const lop of all(con, "SELECT ten, khoi, nhom, si_so, gvcn, thu_tu, nu, kt, loai_hinh, ap_dung, gvcn_group_id FROM lop WHERE nam_hoc_id=?", [copyFrom])) {
       run(con, `INSERT INTO lop(nam_hoc_id, ten, khoi, nhom, si_so, gvcn, thu_tu, nu, kt, loai_hinh, ap_dung, gvcn_group_id)
@@ -319,7 +358,7 @@ export function addNamHoc(con: Db, ten: string, copyFrom?: number) {
         lop.kt ?? 0,
         lop.loai_hinh === "chon" ? "chon" : "thuong",
         Number(lop.ap_dung) === 0 ? 0 : 1,
-        lop.gvcn_group_id ?? null,
+        remapGvcnGroupId(con, newId, lop.gvcn_group_id),
       ]);
     }
     if (get(con, "SELECT name FROM sqlite_master WHERE type='table' AND name='tieu_chi'")) {
@@ -329,14 +368,6 @@ export function addNamHoc(con: Db, ten: string, copyFrom?: number) {
     if (get(con, "SELECT name FROM sqlite_master WHERE type='table' AND name='period_options'")) {
       run(con, `INSERT INTO period_options(nam_id,model,semester,include_exam,exclude_activity)
         SELECT ?,model,semester,include_exam,exclude_activity FROM period_options WHERE nam_id=?`, [newId, copyFrom]);
-    }
-  }
-  if (tableExists(con, "year_formula")) {
-    run(con, "INSERT OR IGNORE INTO year_formula(nam_id) VALUES (?)", [newId]);
-    if (copyFrom) {
-      const src = yearFormulaOf(con, copyFrom);
-      run(con, `UPDATE year_formula SET ktm_divisor=?, hk_month_weight=?, hoi_hoc_double=?, gvcn_5_1_window=? WHERE nam_id=?`,
-        [src.ktm_divisor, src.hk_month_weight, src.hoi_hoc_double, src.gvcn_5_1_window, newId]);
     }
   }
   ensureMilestoneSchema(con);
@@ -404,8 +435,12 @@ export function upsertLop(con: Db, namId: number, data: Dict) {
   if (get(con, "SELECT id FROM lop WHERE nam_hoc_id=? AND ten=? AND id<>?", [namId, data.ten, data.id || 0])) {
     throw new WorkflowError(409, "Tên lớp đã tồn tại trong năm học.");
   }
+  const keepGroup = data.id && !Object.prototype.hasOwnProperty.call(data, "gvcn_group_id");
+  const gvcnGroupId = keepGroup
+    ? (get(con, "SELECT gvcn_group_id FROM lop WHERE id=?", [data.id])?.gvcn_group_id ?? null)
+    : parseGvcnGroupId(con, namId, data.gvcn_group_id);
   if (data.id) {
-    run(con, `UPDATE lop SET ten=?, khoi=?, nhom=?, si_so=?, gvcn=?, thu_tu=?, nu=?, kt=?, loai_hinh=?, ap_dung=?
+    run(con, `UPDATE lop SET ten=?, khoi=?, nhom=?, si_so=?, gvcn=?, thu_tu=?, nu=?, kt=?, loai_hinh=?, ap_dung=?, gvcn_group_id=?
       WHERE id=? AND nam_hoc_id=?`, [
       data.ten,
       data.khoi,
@@ -417,14 +452,15 @@ export function upsertLop(con: Db, namId: number, data: Dict) {
       kt,
       loaiHinh,
       apDung,
+      gvcnGroupId,
       data.id,
       namId,
     ]);
     syncNhapWeekClass(con, namId, Number(data.id));
     return Number(data.id);
   }
-  const r = run(con, `INSERT INTO lop(nam_hoc_id, ten, khoi, nhom, si_so, gvcn, thu_tu, nu, kt, loai_hinh, ap_dung)
-    VALUES (?,?,?,?,?,?,?,?,?,?,?)`, [
+  const r = run(con, `INSERT INTO lop(nam_hoc_id, ten, khoi, nhom, si_so, gvcn, thu_tu, nu, kt, loai_hinh, ap_dung, gvcn_group_id)
+    VALUES (?,?,?,?,?,?,?,?,?,?,?,?)`, [
     namId,
     data.ten,
     data.khoi,
@@ -436,6 +472,7 @@ export function upsertLop(con: Db, namId: number, data: Dict) {
     kt,
     loaiHinh,
     apDung,
+    gvcnGroupId,
   ]);
   const id = Number(r.lastInsertRowid);
   syncNhapWeekClass(con, namId, id);

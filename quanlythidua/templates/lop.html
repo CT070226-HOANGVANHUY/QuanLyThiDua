@@ -2,7 +2,8 @@
 {% block title %}Lớp{% endblock %}
 {% block body %}
 <h1 class="page-title">Lớp</h1>
-<p class="page-sub">Sĩ số, loại hình, giáo viên chủ nhiệm. Thứ tự theo danh sách thi đua.</p>
+<p class="page-sub">Sĩ số, loại hình, giáo viên chủ nhiệm, nhóm tỷ lệ công tác chủ nhiệm A/B/C. Thứ tự theo danh sách thi đua.</p>
+{% if gvcn_hint %}<p class="muted">{{ gvcn_hint }}</p>{% endif %}
 {% if loai_hinh_mismatch and loai_hinh_mismatch.length %}
 <div class="banner danger" style="margin-bottom:12px"><span class="dot">!</span> Nhóm và loại hình lệch: {% for r in loai_hinh_mismatch %}{{ r.ten }}{% if not loop.last %}, {% endif %}{% endfor %}. Hãy chọn lại Lớp chọn / Lớp thường.</div>
 {% endif %}
@@ -20,7 +21,7 @@
 </div>
 <div class="card">
 <table class="data">
-  <thead><tr><th>TT</th><th>Loại hình</th><th>Lớp</th><th>Khối</th><th>Sĩ số</th><th>Nữ</th><th>KT</th><th>GVCN</th><th>Áp dụng</th><th></th></tr></thead>
+  <thead><tr><th>TT</th><th>Loại hình</th><th>Lớp</th><th>Khối</th><th>Sĩ số</th><th>Nữ</th><th>KT</th><th>GVCN</th><th>Nhóm CN</th><th>Áp dụng</th><th></th></tr></thead>
   <tbody>
   {% for r in lops %}
   <tr {% if r.ap_dung==0 %}class="muted"{% endif %}>
@@ -32,6 +33,7 @@
     <td>{{ r.nu }}</td>
     <td>{{ r.kt }}</td>
     <td>{{ r.gvcn }}</td>
+    <td>{% if r.gvcn_group_id %}{% for g in gvcn_groups %}{% if g.id==r.gvcn_group_id %}{{ g.ma }}{% endif %}{% endfor %}{% else %}—{% endif %}</td>
     <td>
       {% if r.ap_dung==0 %}
       <form method="post" action="{{ url_for('ap_dung_lop', lop_id=r.id) }}" style="display:inline">
@@ -72,6 +74,14 @@
       <div class="field"><label>Nữ</label><input name="nu" id="lopNu" type="number" value="0" min="0"></div>
       <div class="field"><label>KT</label><input name="kt" id="lopKt" type="number" value="0" min="0"></div>
       <div class="field"><label>GVCN</label><input name="gvcn" id="lopGvcn"></div>
+      <div class="field"><label>Nhóm công tác chủ nhiệm</label>
+        <select name="gvcn_group_id" id="lopGvcnGroup">
+          <option value="">— Chưa gán —</option>
+          {% for g in gvcn_groups %}
+          <option value="{{ g.id }}">{{ g.ma }} — {{ g.ten }} ({{ "%.12g"|format(g.nguong) }})</option>
+          {% endfor %}
+        </select>
+      </div>
       <div class="field"><label>Thứ tự</label><input name="thu_tu" id="lopTt" type="number" value="0"></div>
       <div class="field"><label>Áp dụng</label>
         <select name="ap_dung" id="lopAp">
@@ -104,6 +114,7 @@ function openLop(r){
   document.getElementById('lopNu').value = r ? (r.nu||0) : 0;
   document.getElementById('lopKt').value = r ? (r.kt||0) : 0;
   document.getElementById('lopGvcn').value = r ? (r.gvcn||'') : '';
+  document.getElementById('lopGvcnGroup').value = r && r.gvcn_group_id ? String(r.gvcn_group_id) : '';
   document.getElementById('lopTt').value = r ? r.thu_tu : 0;
   document.getElementById('lopAp').value = r && Number(r.ap_dung)===0 ? '0' : '1';
 }

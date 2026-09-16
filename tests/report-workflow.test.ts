@@ -314,7 +314,7 @@ test('report parser preserves non-contiguous row ids and rejects malformed value
 test('report revision prevents stale overwrite and complete-class does not require bi_thu', () => {
   const db = calendarFixture();
   try {
-    assert.equal(get(db, "PRAGMA user_version")?.user_version, 7);
+    assert.equal(get(db, "PRAGMA user_version")?.user_version, 9);
     run(db, "INSERT INTO lop(id,nam_hoc_id,ten,khoi,nhom,si_so) VALUES (1,1,'10A1',10,1,30)");
     const week = transaction(db, () => resolveWeekForWrite(db, 1, { week_start: '2026-09-11' }));
     const draft = parseReport(reportForm({ nghi_0_ho_ten: 'A' }), week);
