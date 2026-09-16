@@ -21,6 +21,32 @@ export function writeRestoreIntent(file, intent) {
   fs.writeFileSync(file, JSON.stringify(intent));
 }
 
+function normPath(p) {
+  return path.resolve(p).replace(/[\\/]+$/, "").toLowerCase();
+}
+
+export function sameFsPath(a, b) {
+  return Boolean(a) && Boolean(b) && normPath(a) === normPath(b);
+}
+
+export function pathInside(inner, outer) {
+  if (!inner || !outer) return false;
+  const a = normPath(inner);
+  const b = normPath(outer);
+  if (a === b) return true;
+  const prefix = b.endsWith(path.sep) ? b : b + path.sep;
+  return a.startsWith(prefix);
+}
+
+function replaceDirectory(source, dest) {
+  if (sameFsPath(source, dest) || pathInside(dest, source) || pathInside(source, dest)) return;
+  const tmp = `${String(dest).replace(/[\\/]+$/, "")}.restoring`;
+  if (fs.existsSync(tmp)) fs.rmSync(tmp, { recursive: true, force: true });
+  fs.cpSync(source, tmp, { recursive: true });
+  if (fs.existsSync(dest)) fs.rmSync(dest, { recursive: true, force: true });
+  fs.renameSync(tmp, dest);
+}
+
 export function applyRestoreIntent(file) {
   if (!fs.existsSync(file)) return false;
   const intent = JSON.parse(fs.readFileSync(file, "utf8"));
@@ -44,9 +70,7 @@ export function applyRestoreIntent(file) {
   const sourceBaoCao = intent.sourceBaoCao ? String(intent.sourceBaoCao) : "";
   const destBaoCao = intent.destBaoCao ? String(intent.destBaoCao) : "";
   if (sourceBaoCao && destBaoCao && fs.existsSync(sourceBaoCao) && isLocalFsPath(destBaoCao)) {
-    fs.mkdirSync(path.dirname(destBaoCao), { recursive: true });
-    if (fs.existsSync(destBaoCao)) fs.rmSync(destBaoCao, { recursive: true, force: true });
-    fs.cpSync(sourceBaoCao, destBaoCao, { recursive: true });
+    replaceDirectory(sourceBaoCao, destBaoCao);
   }
   fs.unlinkSync(file);
   return true;

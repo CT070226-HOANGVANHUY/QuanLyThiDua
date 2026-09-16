@@ -4,7 +4,7 @@ import os from "node:os";
 import path from "node:path";
 import { test } from "node:test";
 import { DatabaseSync } from "node:sqlite";
-import { applyRestoreIntent, intentPath, writeRestoreIntent } from "../electron/restore-intent.mjs";
+import { applyRestoreIntent, intentPath, sameFsPath, writeRestoreIntent } from "../electron/restore-intent.mjs";
 import { APP_SCHEMA_MAX, checkRestoreCandidate, lastBackupInfo, vacuumBackup } from "../src/backup.ts";
 import { connect, get, initDb, run } from "../src/db.ts";
 
@@ -127,6 +127,57 @@ test("restore-intent copies db, drops wal/shm, copies BaoCao, then deletes the i
     } finally { live.close(); }
     assert.equal(readFileSync(path.join(dir, "BaoCao", "note.txt"), "utf8"), "bao cao moi");
     assert.equal(existsSync(path.join(dir, "BaoCao", "old.txt")), false);
+  } finally { rmSync(dir, { recursive: true, force: true }); }
+});
+
+test("BaoCao copy skips when source and dest are the same path (case-insensitive)", () => {
+  const dir = tempDir();
+  try {
+    const bao = path.join(dir, "BaoCao");
+    mkdirSync(bao, { recursive: true });
+    writeFileSync(path.join(bao, "keep.txt"), "live");
+    const sourceDb = writeCandidate(dir, "thidua.db", `
+      CREATE TABLE nam_hoc (id INTEGER PRIMARY KEY, ten TEXT);
+      INSERT INTO nam_hoc(ten) VALUES ('same-bao');
+    `);
+    const destDb = path.join(dir, "live.db");
+    const intent = intentPath(dir);
+    writeRestoreIntent(intent, {
+      sourceDb,
+      destDb,
+      sourceBaoCao: bao,
+      destBaoCao: path.join(dir, "baocao"),
+    });
+    assert.equal(sameFsPath(bao, path.join(dir, "baocao")), true);
+    assert.equal(applyRestoreIntent(intent), true);
+    assert.equal(readFileSync(path.join(bao, "keep.txt"), "utf8"), "live");
+    assert.equal(existsSync(path.join(dir, "BaoCao.restoring")), false);
+  } finally { rmSync(dir, { recursive: true, force: true }); }
+});
+
+test("BaoCao copy skips when dest is inside source and does not rmSync live reports", () => {
+  const dir = tempDir();
+  try {
+    const sourceBao = path.join(dir, "usb");
+    const destBao = path.join(sourceBao, "BaoCao");
+    mkdirSync(destBao, { recursive: true });
+    writeFileSync(path.join(sourceBao, "root.txt"), "usb");
+    writeFileSync(path.join(destBao, "keep.txt"), "live");
+    const sourceDb = writeCandidate(dir, "thidua.db", `
+      CREATE TABLE nam_hoc (id INTEGER PRIMARY KEY, ten TEXT);
+      INSERT INTO nam_hoc(ten) VALUES ('nested-bao');
+    `);
+    const destDb = path.join(dir, "live.db");
+    const intent = intentPath(dir);
+    writeRestoreIntent(intent, {
+      sourceDb,
+      destDb,
+      sourceBaoCao: sourceBao,
+      destBaoCao: destBao,
+    });
+    assert.equal(applyRestoreIntent(intent), true);
+    assert.equal(readFileSync(path.join(destBao, "keep.txt"), "utf8"), "live");
+    assert.equal(readFileSync(path.join(sourceBao, "root.txt"), "utf8"), "usb");
   } finally { rmSync(dir, { recursive: true, force: true }); }
 });
 

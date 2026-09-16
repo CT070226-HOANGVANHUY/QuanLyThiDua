@@ -3,7 +3,7 @@ import { spawn } from "node:child_process";
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { applyRestoreIntent, intentPath, isLocalFsPath, writeRestoreIntent } from "./restore-intent.mjs";
+import { applyRestoreIntent, intentPath, isLocalFsPath, sameFsPath, writeRestoreIntent } from "./restore-intent.mjs";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const PORT = process.env.PORT || "5050";
@@ -140,20 +140,29 @@ app.whenReady().then(async () => {
     if (!isLocalFsPath(source)) throw new Error("Đường dẫn không hợp lệ.");
     if (!fs.existsSync(source) || !fs.statSync(source).isFile()) throw new Error("Không tìm thấy file.");
     const destDb = path.resolve(liveDbPath());
-    if (source.toLowerCase() === destDb.toLowerCase()) throw new Error("File đang mở là dữ liệu hiện tại.");
+    if (sameFsPath(source, destDb)) throw new Error("File đang mở là dữ liệu hiện tại.");
     const sourceBaoCao = path.join(path.dirname(source), "BaoCao");
-    writeRestoreIntent(intentPath(DATA_DIR), {
+    const destBaoCao = path.join(ROOT, "BaoCao");
+    const intent = intentPath(DATA_DIR);
+    writeRestoreIntent(intent, {
       sourceDb: source,
       destDb,
-      sourceBaoCao: fs.existsSync(sourceBaoCao) ? sourceBaoCao : null,
-      destBaoCao: path.join(ROOT, "BaoCao"),
+      sourceBaoCao: fs.existsSync(sourceBaoCao) && !sameFsPath(sourceBaoCao, destBaoCao) ? sourceBaoCao : null,
+      destBaoCao,
     });
     await stopBackend();
-    applyRestoreIntent(intentPath(DATA_DIR));
-    const again = await startBackend();
-    child = again.child;
-    if (win && !win.isDestroyed()) await win.reload();
-    return { ok: true };
+    try {
+      applyRestoreIntent(intent);
+      return { ok: true };
+    } catch (error) {
+      const pending = [`${destDb}.restoring`, `${destBaoCao}.restoring`];
+      if (fs.existsSync(intent) && !pending.some((file) => fs.existsSync(file))) fs.unlinkSync(intent);
+      throw error;
+    } finally {
+      const again = await startBackend();
+      child = again.child;
+      if (win && !win.isDestroyed()) await win.reload();
+    }
   });
   await win.loadURL(started.url);
   win.on("closed", () => {
