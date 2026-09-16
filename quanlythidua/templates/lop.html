@@ -2,22 +2,45 @@
 {% block title %}Lớp{% endblock %}
 {% block body %}
 <h1 class="page-title">Lớp</h1>
-<p class="page-sub">Sĩ số, nhóm, giáo viên chủ nhiệm.</p>
+<p class="page-sub">Sĩ số, loại hình, giáo viên chủ nhiệm. Thứ tự theo danh sách thi đua.</p>
+{% if loai_hinh_mismatch and loai_hinh_mismatch.length %}
+<div class="banner danger" style="margin-bottom:12px"><span class="dot">!</span> Nhóm và loại hình lệch: {% for r in loai_hinh_mismatch %}{{ r.ten }}{% if not loop.last %}, {% endif %}{% endfor %}. Hãy chọn lại Lớp chọn / Lớp thường.</div>
+{% endif %}
+{% if leftover_reports and leftover_reports.length %}
+<div class="banner danger" style="margin-bottom:12px"><span class="dot">!</span> Lớp không áp dụng còn báo cáo tuần (không phải tuần mẫu): {% for r in leftover_reports %}{{ r.ten }}{% if not loop.last %}, {% endif %}{% endfor %}.</div>
+{% endif %}
 <div class="toolbar">
   <button class="btn-gold" type="button" onclick="openLop()">+ Thêm lớp</button>
+  {% if sample_week %}
+  <form method="post" action="{{ url_for('xoa_tuan_mau') }}" onsubmit="return confirm('Xóa tuần mẫu Tuần 3 (Excel cũ)? Dữ liệu tuần này sẽ mất.')">
+    <input type="hidden" name="nam_id" value="{{ nam.id }}">
+    <button class="btn danger" type="submit">Xóa tuần mẫu Tuần 3 Excel cũ</button>
+  </form>
+  {% endif %}
 </div>
 <div class="card">
 <table class="data">
-  <thead><tr><th>Nhóm</th><th>Lớp</th><th>Khối</th><th>Sĩ số</th><th>GVCN</th><th>Thứ tự</th><th></th></tr></thead>
+  <thead><tr><th>TT</th><th>Loại hình</th><th>Lớp</th><th>Khối</th><th>Sĩ số</th><th>Nữ</th><th>KT</th><th>GVCN</th><th>Áp dụng</th><th></th></tr></thead>
   <tbody>
   {% for r in lops %}
-  <tr>
-    <td>{{ r.nhom }}</td>
+  <tr {% if r.ap_dung==0 %}class="muted"{% endif %}>
+    <td>{{ r.thu_tu }}</td>
+    <td>{{ 'Lớp chọn' if r.loai_hinh=='chon' else 'Lớp thường' }}</td>
     <td><b>{{ r.ten }}</b></td>
     <td>{{ r.khoi }}</td>
     <td>{{ r.si_so }}</td>
+    <td>{{ r.nu }}</td>
+    <td>{{ r.kt }}</td>
     <td>{{ r.gvcn }}</td>
-    <td>{{ r.thu_tu }}</td>
+    <td>
+      {% if r.ap_dung==0 %}
+      <form method="post" action="{{ url_for('ap_dung_lop', lop_id=r.id) }}" style="display:inline">
+        <input type="hidden" name="nam_id" value="{{ nam.id }}">
+        <input type="hidden" name="ap_dung" value="1">
+        <button class="btn sm" type="submit">Áp dụng</button>
+      </form>
+      {% else %}Có{% endif %}
+    </td>
     <td>
       <button class="btn ghost sm" type="button" onclick='openLop({{ r|tojson }})'>Sửa</button>
       <form method="post" action="{{ url_for('xoa_lop', lop_id=r.id) }}" style="display:inline" onsubmit="return confirm('Xóa lớp {{ r.ten }}?')">
@@ -39,10 +62,23 @@
     <div class="form-grid">
       <div class="field"><label>Tên lớp</label><input name="ten" id="lopTen" required></div>
       <div class="field"><label>Khối</label><input name="khoi" id="lopKhoi" type="number" value="10"></div>
-      <div class="field"><label>Nhóm (1/2)</label><input name="nhom" id="lopNhom" type="number" value="1"></div>
+      <div class="field"><label>Loại hình</label>
+        <select name="loai_hinh" id="lopLoai">
+          <option value="chon">Lớp chọn</option>
+          <option value="thuong">Lớp thường</option>
+        </select>
+      </div>
       <div class="field"><label>Sĩ số</label><input name="si_so" id="lopSi" type="number" value="40"></div>
+      <div class="field"><label>Nữ</label><input name="nu" id="lopNu" type="number" value="0" min="0"></div>
+      <div class="field"><label>KT</label><input name="kt" id="lopKt" type="number" value="0" min="0"></div>
       <div class="field"><label>GVCN</label><input name="gvcn" id="lopGvcn"></div>
       <div class="field"><label>Thứ tự</label><input name="thu_tu" id="lopTt" type="number" value="0"></div>
+      <div class="field"><label>Áp dụng</label>
+        <select name="ap_dung" id="lopAp">
+          <option value="1">Có</option>
+          <option value="0">Không</option>
+        </select>
+      </div>
     </div>
     <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:14px">
       <button type="button" class="btn ghost" onclick="document.getElementById('lopModal').classList.remove('show')">Hủy</button>
@@ -53,16 +89,27 @@
 {% endblock %}
 {% block extra %}
 <script>
+function khoiFromTen(ten){
+  var n = parseInt(String(ten||'').trim(), 10);
+  return n===10||n===11||n===12 ? n : null;
+}
 function openLop(r){
   document.getElementById('lopModal').classList.add('show');
   document.getElementById('lopTitle').textContent = r ? 'Sửa lớp' : 'Thêm lớp';
   document.getElementById('lopId').value = r ? r.id : '';
   document.getElementById('lopTen').value = r ? r.ten : '';
   document.getElementById('lopKhoi').value = r ? r.khoi : 10;
-  document.getElementById('lopNhom').value = r ? r.nhom : 1;
+  document.getElementById('lopLoai').value = r ? (r.loai_hinh==='chon' ? 'chon' : 'thuong') : 'thuong';
   document.getElementById('lopSi').value = r ? r.si_so : 40;
+  document.getElementById('lopNu').value = r ? (r.nu||0) : 0;
+  document.getElementById('lopKt').value = r ? (r.kt||0) : 0;
   document.getElementById('lopGvcn').value = r ? (r.gvcn||'') : '';
   document.getElementById('lopTt').value = r ? r.thu_tu : 0;
+  document.getElementById('lopAp').value = r && Number(r.ap_dung)===0 ? '0' : '1';
 }
+document.getElementById('lopTen').addEventListener('input', function(){
+  var k = khoiFromTen(this.value);
+  if (k) document.getElementById('lopKhoi').value = k;
+});
 </script>
 {% endblock %}

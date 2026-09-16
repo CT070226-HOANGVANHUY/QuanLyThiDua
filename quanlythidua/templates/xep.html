@@ -10,6 +10,9 @@
     {% endif %}
   </div>
 </div>
+{% if loai_hinh_mismatch and loai_hinh_mismatch.length %}
+<div class="banner danger" style="margin-bottom:12px"><span class="dot">!</span> Nhóm và loại hình lệch: {% for r in loai_hinh_mismatch %}{{ r.ten }}{% if not loop.last %}, {% endif %}{% endfor %}. Sửa tại Danh sách lớp.</div>
+{% endif %}
 {% if tuan %}
 {% if tuan.id and not tuan.legacy and not tuan.conflict and not tuan.outside %}
 <form method="post" action="{{ url_for('chot_tuan') }}" class="toolbar">

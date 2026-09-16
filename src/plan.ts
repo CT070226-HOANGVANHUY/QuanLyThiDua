@@ -1,4 +1,5 @@
-import { addColumn, all, get, getTuan, inTransaction, listLop, listTuan, requireActiveYear, requireOwned, run, transaction, upsertTuan, WorkflowError, type Db, type Dict } from "./db.ts";
+import { addColumn, all, get, getTuan, inTransaction, listLop, listTuan, requireActiveYear, requireOwned, run, SAMPLE_WEEK_NOTE, tableExists, transaction, upsertTuan, WorkflowError, type Db, type Dict } from "./db.ts";
+import { migrate } from "./migrate.ts";
 import { GIO_KEYS, KTM_SCORE_KEYS, NN_KEYS, competitionRanks, scoreAll, type ClassResult, type Row } from "./scoring.ts";
 
 export const TT_NHAP = "nhap";
@@ -196,6 +197,10 @@ export function initPlan(con: Db) {
     con.exec(`CREATE TABLE IF NOT EXISTS week_class(
       tuan_id INTEGER NOT NULL REFERENCES tuan(id),lop_id INTEGER NOT NULL REFERENCES lop(id),
       ten TEXT NOT NULL,nhom INTEGER NOT NULL,si_so INTEGER NOT NULL,gvcn TEXT NOT NULL DEFAULT '',
+      thu_tu INTEGER NOT NULL DEFAULT 0,
+      loai_hinh TEXT NOT NULL DEFAULT 'thuong',
+      gvcn_group_id INTEGER,
+      ap_dung INTEGER NOT NULL DEFAULT 1,
       PRIMARY KEY(tuan_id,lop_id)
     );
     CREATE TABLE IF NOT EXISTS week_status_log(
@@ -238,6 +243,7 @@ export function initPlan(con: Db) {
       AND NOT EXISTS(SELECT 1 FROM cham_dong WHERE cham_dong.tieu_chi_id=tieu_chi.id)
       AND NOT EXISTS(SELECT 1 FROM su_kien WHERE su_kien.tieu_chi_id=tieu_chi.id)`);
   }
+  migrate(con);
 }
 
 export function locked(tuan: Dict | undefined) {
@@ -513,7 +519,7 @@ export function setTuanStatus(
       for (const row of results) row.rank_status = "official";
       const payload = {
         version: 1, rule: "Quy chế 2026–2027; xếp NN/HT giảm dần, tổng hạng tăng dần",
-        week: { ...week, trang_thai: TT_CHOT }, cohort: all(con, "SELECT * FROM week_class WHERE tuan_id=? ORDER BY nhom,ten", [tuanId]),
+        week: { ...week, trang_thai: TT_CHOT }, cohort: all(con, "SELECT * FROM week_class WHERE tuan_id=? AND ap_dung=1 ORDER BY thu_tu,ten", [tuanId]),
         criteria: all(con, "SELECT id,ma,ten,score_key,diem,don_vi FROM tieu_chi WHERE nam_hoc_id=? ORDER BY id", [namId]),
         results,
       };
@@ -640,9 +646,37 @@ export function loadReport(con: Db, tuanId: number, lopId: number) {
 function freezeWeekClasses(con: Db, namId: number, tuanId: number) {
   if (get(con, "SELECT 1 FROM week_class WHERE tuan_id=? LIMIT 1", [tuanId])) return;
   for (const lop of listLop(con, namId)) {
-    run(con, "INSERT INTO week_class(tuan_id,lop_id,ten,nhom,si_so,gvcn) VALUES (?,?,?,?,?,?)",
-      [tuanId, lop.id, lop.ten, lop.nhom, lop.si_so, lop.gvcn || ""]);
+    run(con, `INSERT INTO week_class(tuan_id,lop_id,ten,nhom,si_so,gvcn,thu_tu,loai_hinh,gvcn_group_id,ap_dung)
+      VALUES (?,?,?,?,?,?,?,?,?,?)`,
+      [tuanId, lop.id, lop.ten, lop.nhom, lop.si_so, lop.gvcn || "", lop.thu_tu ?? 0,
+        lop.loai_hinh === "chon" ? "chon" : "thuong", lop.gvcn_group_id ?? null, Number(lop.ap_dung) === 0 ? 0 : 1]);
   }
+}
+
+export function weekRoster(con: Db, namId: number, tuanId?: number) {
+  if (tuanId) {
+    const frozen = all(con, `SELECT lop_id AS id, ten, nhom, si_so, gvcn, thu_tu, loai_hinh, ap_dung, gvcn_group_id
+      FROM week_class WHERE tuan_id=? AND ap_dung=1 ORDER BY thu_tu, ten`, [tuanId]);
+    if (frozen.length) return frozen;
+  }
+  return listLop(con, namId);
+}
+
+export function sampleWeek(con: Db, namId: number) {
+  return get(con, "SELECT * FROM tuan WHERE nam_hoc_id=? AND so_tuan=3 AND ghi_chu=?", [namId, SAMPLE_WEEK_NOTE]);
+}
+
+export function deleteSampleWeek(con: Db, namId: number) {
+  transaction(con, () => {
+    requireActiveYear(con, namId);
+    const week = sampleWeek(con, namId);
+    if (!week) throw new WorkflowError(404, "Không có tuần mẫu để xóa.");
+    const id = Number(week.id);
+    for (const table of ["week_snapshot", "week_status_log", "week_class", "weekly_legacy_input", "manual_score_conflict"]) {
+      if (tableExists(con, table)) run(con, `DELETE FROM ${table} WHERE tuan_id=?`, [id]);
+    }
+    run(con, "DELETE FROM tuan WHERE id=? AND ghi_chu=?", [id, SAMPLE_WEEK_NOTE]);
+  });
 }
 export function saveReport(
   con: Db,
@@ -785,7 +819,8 @@ export function buildWeekInputs(con: Db, namId: number, tuanId: number) {
   const week = requireOwned(con, "tuan", tuanId, namId);
   const reports: Record<number, Dict> = {};
   for (const report of all(con, "SELECT * FROM bao_cao_tuan WHERE tuan_id=?", [tuanId])) reports[Number(report.lop_id)] = report;
-  const frozen = all(con, "SELECT lop_id AS id,ten,nhom,si_so,gvcn FROM week_class WHERE tuan_id=? ORDER BY nhom,ten", [tuanId]);
+  const frozen = all(con, `SELECT lop_id AS id,ten,nhom,si_so,gvcn,thu_tu,loai_hinh,ap_dung,gvcn_group_id
+    FROM week_class WHERE tuan_id=? AND ap_dung=1 ORDER BY thu_tu,ten`, [tuanId]);
   const roster = frozen.length ? frozen : listLop(con, namId);
   const linesByClass: Record<number, Dict[]> = {};
   for (const line of all(con, "SELECT * FROM cham_dong WHERE tuan_id=? ORDER BY lop_id,id", [tuanId])) {

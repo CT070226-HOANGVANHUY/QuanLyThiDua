@@ -3,13 +3,42 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { DatabaseSync } from "node:sqlite";
 import { GIO_KEYS, KTM_SCORE_KEYS, NN_KEYS, SCORE_FIELDS } from "./scoring.ts";
+import { migrate } from "./migrate.ts";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 export const DATA_DIR = path.join(ROOT, "data");
 export const DB_PATH = process.env.THIDUA_DB_PATH || path.join(DATA_DIR, "thidua.db");
 export const REPORT_DIR = path.join(ROOT, "BaoCao");
+export const SAMPLE_WEEK_NOTE = "Dữ liệu mẫu — Tuần 3 (theo file Excel cũ)";
+export const ROSTER_YEAR = "2026-2027";
 export type Dict = Record<string, unknown> & { [key: string]: unknown };
 export type Db = DatabaseSync;
+export type SeedClass = {
+  thu_tu: number;
+  gvcn: string;
+  ten: string;
+  si_so: number;
+  nu: number;
+  kt: number;
+  loai_hinh: "chon" | "thuong";
+};
+export type ListLopOpts = { activeOnly?: boolean };
+
+export function loadSeed(): { lop: SeedClass[]; quy_che: [string, string, string, string, string][] } {
+  return JSON.parse(readFileSync(path.join(ROOT, "src", "seed.json"), "utf8"));
+}
+
+export function tableExists(con: Db, name: string): boolean {
+  return Boolean(get(con, "SELECT name FROM sqlite_master WHERE type='table' AND name=?", [name]));
+}
+
+export function khoiFromTen(ten: string): number {
+  return Number.parseInt(String(ten).trim(), 10);
+}
+
+export function nhomFromLoaiHinh(loaiHinh: string): number {
+  return loaiHinh === "chon" ? 1 : 2;
+}
 
 const NN_SQL = NN_KEYS.map((k) => `${k} REAL NOT NULL DEFAULT 0`).join(", ");
 const GIO_SQL = GIO_KEYS.map((k) => `${k} INTEGER NOT NULL DEFAULT 0`).join(", ");
@@ -31,6 +60,11 @@ CREATE TABLE IF NOT EXISTS lop (
     si_so INTEGER NOT NULL DEFAULT 0,
     gvcn TEXT NOT NULL DEFAULT '',
     thu_tu INTEGER NOT NULL DEFAULT 0,
+    nu INTEGER NOT NULL DEFAULT 0,
+    kt INTEGER NOT NULL DEFAULT 0,
+    loai_hinh TEXT NOT NULL DEFAULT 'thuong' CHECK(loai_hinh IN ('chon','thuong')),
+    ap_dung INTEGER NOT NULL DEFAULT 1 CHECK(ap_dung IN (0,1)),
+    gvcn_group_id INTEGER,
     UNIQUE(nam_hoc_id, ten)
 );
 CREATE TABLE IF NOT EXISTS tuan (
@@ -76,14 +110,6 @@ CREATE TABLE IF NOT EXISTS loi_vi_pham (
     ghi_chu TEXT NOT NULL DEFAULT ''
 );
 `;
-
-const WEEK3_SCORES: Record<string, Record<string, number>> = {
-  "11A5": { hs_ky_luat: 30, gio_tot: 23, ktm_ge5: 1 },
-  "11A9": { hs_ky_luat: 30, gio_tot: 23, ktm_ge5: 1 },
-  "12A6": { phu_hieu: 1, gio_tot: 23, ktm_ge5: 1 },
-  "12A7": { vp_khac: 1, gio_tot: 23, ktm_ge5: 1 },
-};
-const WEEK3_DEFAULT_HT = { gio_tot: 23, ktm_ge5: 1 };
 
 export function connect(dbPath = DB_PATH): Db {
   if (dbPath !== ":memory:") mkdirSync(path.dirname(path.resolve(dbPath)), { recursive: true });
@@ -163,9 +189,10 @@ export function addColumn(con: Db, table: string, name: string, definition: stri
 
 export function initDb(con: Db): void {
   con.exec(SCHEMA);
+  migrate(con);
+  const seed = loadSeed();
   if (process.env.THIDUA_EMPTY_DB === "1") {
     if (!get(con, "SELECT id FROM quy_che LIMIT 1")) {
-      const seed = JSON.parse(readFileSync(path.join(ROOT, "src", "seed.json"), "utf8"));
       transaction(con, () => {
         for (const row of seed.quy_che) {
           run(con, "INSERT INTO quy_che(stt,muc,noi_dung,diem,ghi_chu) VALUES (?,?,?,?,?)", row);
@@ -174,42 +201,27 @@ export function initDb(con: Db): void {
     }
     return;
   }
-  const n = get(con, "SELECT COUNT(*) AS c FROM nam_hoc")!.c;
-  if (n) return;
-  const seed = JSON.parse(readFileSync(path.join(ROOT, "src", "seed.json"), "utf8")) as {
-    lop: [number, string, number][];
-    quy_che: [string, string, string, string, string][];
-  };
-  run(con, "INSERT INTO nam_hoc(ten, active) VALUES (?, 1)", ["2026-2027"]);
-  const namId = get(con, "SELECT id FROM nam_hoc WHERE ten=?", ["2026-2027"])!.id;
-  seed.lop.forEach(([nhom, ten, siSo], i) => {
-    run(con, "INSERT INTO lop(nam_hoc_id, ten, khoi, nhom, si_so, thu_tu) VALUES (?,?,?,?,?,?)", [
+  if (get(con, "SELECT COUNT(*) AS c FROM nam_hoc")!.c) return;
+  run(con, "INSERT INTO nam_hoc(ten, active) VALUES (?, 1)", [ROSTER_YEAR]);
+  const namId = get(con, "SELECT id FROM nam_hoc WHERE ten=?", [ROSTER_YEAR])!.id;
+  for (const row of seed.lop) {
+    const loaiHinh = row.loai_hinh === "chon" ? "chon" : "thuong";
+    run(con, `INSERT INTO lop(nam_hoc_id, ten, khoi, nhom, si_so, gvcn, thu_tu, nu, kt, loai_hinh, ap_dung)
+      VALUES (?,?,?,?,?,?,?,?,?,?,1)`, [
       namId,
-      ten,
-      Number(ten.slice(0, 2)),
-      nhom,
-      siSo,
-      i + 1,
+      row.ten,
+      khoiFromTen(row.ten),
+      nhomFromLoaiHinh(loaiHinh),
+      row.si_so,
+      row.gvcn,
+      row.thu_tu,
+      row.nu,
+      row.kt,
+      loaiHinh,
     ]);
-  });
+  }
   for (const row of seed.quy_che) {
     run(con, "INSERT INTO quy_che(stt, muc, noi_dung, diem, ghi_chu) VALUES (?,?,?,?,?)", row);
-  }
-  run(con, "INSERT INTO tuan(nam_hoc_id, so_tuan, thang, nam, hoc_ky, ghi_chu) VALUES (?,?,?,?,?,?)", [
-    namId,
-    3,
-    9,
-    2026,
-    1,
-    "Dữ liệu mẫu — Tuần 3 (theo file Excel cũ)",
-  ]);
-  const tuanId = get(con, "SELECT id FROM tuan WHERE nam_hoc_id=? AND so_tuan=?", [namId, 3])!.id;
-  const fields = [...NN_KEYS, ...GIO_KEYS, "ktm_ge5", "ktm_lt5", ...KTM_SCORE_KEYS];
-  const ph = Array(2 + fields.length).fill("?").join(",");
-  for (const lop of all(con, "SELECT id, ten FROM lop WHERE nam_hoc_id=?", [namId])) {
-    const scores = { ...WEEK3_DEFAULT_HT, ...(WEEK3_SCORES[lop.ten] ?? {}) };
-    const vals = [tuanId, lop.id, ...fields.map((f) => scores[f] ?? 0)];
-    run(con, `INSERT INTO diem_tuan(tuan_id, lop_id, ${fields.join(",")}) VALUES (${ph})`, vals);
   }
 }
 
@@ -235,8 +247,9 @@ export function addNamHoc(con: Db, ten: string, copyFrom?: number) {
   run(con, "INSERT INTO nam_hoc(ten, active) VALUES (?, 0)", [ten]);
   const newId = get(con, "SELECT id FROM nam_hoc WHERE ten=?", [ten])!.id;
   if (copyFrom) {
-    for (const lop of all(con, "SELECT ten, khoi, nhom, si_so, gvcn, thu_tu FROM lop WHERE nam_hoc_id=?", [copyFrom])) {
-      run(con, "INSERT INTO lop(nam_hoc_id, ten, khoi, nhom, si_so, gvcn, thu_tu) VALUES (?,?,?,?,?,?,?)", [
+    for (const lop of all(con, "SELECT ten, khoi, nhom, si_so, gvcn, thu_tu, nu, kt, loai_hinh, ap_dung, gvcn_group_id FROM lop WHERE nam_hoc_id=?", [copyFrom])) {
+      run(con, `INSERT INTO lop(nam_hoc_id, ten, khoi, nhom, si_so, gvcn, thu_tu, nu, kt, loai_hinh, ap_dung, gvcn_group_id)
+        VALUES (?,?,?,?,?,?,?,?,?,?,?,?)`, [
         newId,
         lop.ten,
         lop.khoi,
@@ -244,6 +257,11 @@ export function addNamHoc(con: Db, ten: string, copyFrom?: number) {
         lop.si_so,
         lop.gvcn,
         lop.thu_tu,
+        lop.nu ?? 0,
+        lop.kt ?? 0,
+        lop.loai_hinh === "chon" ? "chon" : "thuong",
+        Number(lop.ap_dung) === 0 ? 0 : 1,
+        lop.gvcn_group_id ?? null,
       ]);
     }
     if (get(con, "SELECT name FROM sqlite_master WHERE type='table' AND name='tieu_chi'")) {
@@ -258,43 +276,96 @@ export function addNamHoc(con: Db, ten: string, copyFrom?: number) {
   return newId;
   });
 }
-export function listLop(con: Db, namId: number) {
-  return all(con, "SELECT * FROM lop WHERE nam_hoc_id=? ORDER BY nhom, thu_tu, ten", [namId]);
+export function listLop(con: Db, namId: number, { activeOnly = true }: ListLopOpts = {}) {
+  const where = activeOnly ? "AND ap_dung=1" : "";
+  return all(con, `SELECT * FROM lop WHERE nam_hoc_id=? ${where} ORDER BY thu_tu, khoi, ten`, [namId]);
 }
+
+export function loaiHinhMismatch(con: Db, namId: number) {
+  return all(con, `SELECT ten FROM lop WHERE nam_hoc_id=? AND (nhom=1) != (loai_hinh='chon') ORDER BY thu_tu, ten`, [namId]);
+}
+
+export function leftoverClassReports(con: Db, namId: number) {
+  if (!tableExists(con, "bao_cao_tuan")) return [];
+  return all(con, `SELECT DISTINCT lop.ten AS ten
+    FROM lop
+    JOIN bao_cao_tuan ON bao_cao_tuan.lop_id=lop.id
+    JOIN tuan ON tuan.id=bao_cao_tuan.tuan_id
+    WHERE lop.nam_hoc_id=? AND lop.ap_dung=0 AND tuan.ghi_chu<>?
+    ORDER BY lop.ten`, [namId, SAMPLE_WEEK_NOTE]);
+}
+
+export function setLopApDung(con: Db, namId: number, lopId: number, apDung: number) {
+  return transaction(con, () => {
+    requireActiveYear(con, namId);
+    requireOwned(con, "lop", lopId, namId);
+    const value = apDung === 0 ? 0 : 1;
+    run(con, "UPDATE lop SET ap_dung=? WHERE id=? AND nam_hoc_id=?", [value, lopId, namId]);
+    return value;
+  });
+}
+
 export function upsertLop(con: Db, namId: number, data: Dict) {
   return transaction(con, () => {
   requireActiveYear(con, namId);
   data.ten = String(data.ten ?? "").trim().toUpperCase();
+  const khoiTen = khoiFromTen(data.ten);
+  if ([10, 11, 12].includes(khoiTen)) data.khoi = khoiTen;
+  let loaiHinh: "chon" | "thuong";
+  let nhom: number;
+  if (data.loai_hinh === "chon" || data.loai_hinh === "thuong") {
+    loaiHinh = data.loai_hinh;
+    nhom = nhomFromLoaiHinh(loaiHinh);
+  } else {
+    nhom = Number(data.nhom);
+    loaiHinh = nhom === 1 ? "chon" : "thuong";
+  }
+  const nu = data.nu == null || data.nu === "" ? 0 : Number(data.nu);
+  const kt = data.kt == null || data.kt === "" ? 0 : Number(data.kt);
+  const apDung = data.ap_dung === 0 || data.ap_dung === "0" ? 0 : 1;
+  const thuTu = data.thu_tu == null || data.thu_tu === "" ? 0 : Number(data.thu_tu);
   if (!data.ten || ![10, 11, 12].includes(Number(data.khoi)) ||
-      !Number.isInteger(Number(data.nhom)) || Number(data.nhom) <= 0 ||
-      !Number.isInteger(Number(data.si_so)) || Number(data.si_so) <= 0) {
-    throw new WorkflowError(400, "Cần tên lớp, khối 10–12, nhóm và sĩ số nguyên dương.");
+      !Number.isInteger(nhom) || nhom <= 0 ||
+      !Number.isInteger(Number(data.si_so)) || Number(data.si_so) <= 0 ||
+      !Number.isInteger(nu) || nu < 0 || !Number.isInteger(kt) || kt < 0 ||
+      !Number.isInteger(thuTu)) {
+    throw new WorkflowError(400, "Cần tên lớp, khối 10–12, loại hình và sĩ số nguyên dương.");
   }
   if (data.id) requireOwned(con, "lop", Number(data.id), namId);
   if (get(con, "SELECT id FROM lop WHERE nam_hoc_id=? AND ten=? AND id<>?", [namId, data.ten, data.id || 0])) {
     throw new WorkflowError(409, "Tên lớp đã tồn tại trong năm học.");
   }
   if (data.id) {
-    run(con, "UPDATE lop SET ten=?, khoi=?, nhom=?, si_so=?, gvcn=?, thu_tu=? WHERE id=? AND nam_hoc_id=?", [
+    run(con, `UPDATE lop SET ten=?, khoi=?, nhom=?, si_so=?, gvcn=?, thu_tu=?, nu=?, kt=?, loai_hinh=?, ap_dung=?
+      WHERE id=? AND nam_hoc_id=?`, [
       data.ten,
       data.khoi,
-      data.nhom,
+      nhom,
       data.si_so,
       data.gvcn ?? "",
-      data.thu_tu ?? 0,
+      thuTu,
+      nu,
+      kt,
+      loaiHinh,
+      apDung,
       data.id,
       namId,
     ]);
     return Number(data.id);
   }
-  const r = run(con, "INSERT INTO lop(nam_hoc_id, ten, khoi, nhom, si_so, gvcn, thu_tu) VALUES (?,?,?,?,?,?,?)", [
+  const r = run(con, `INSERT INTO lop(nam_hoc_id, ten, khoi, nhom, si_so, gvcn, thu_tu, nu, kt, loai_hinh, ap_dung)
+    VALUES (?,?,?,?,?,?,?,?,?,?,?)`, [
     namId,
     data.ten,
     data.khoi,
-    data.nhom,
+    nhom,
     data.si_so,
     data.gvcn ?? "",
-    data.thu_tu ?? 0,
+    thuTu,
+    nu,
+    kt,
+    loaiHinh,
+    apDung,
   ]);
   return Number(r.lastInsertRowid);
   });

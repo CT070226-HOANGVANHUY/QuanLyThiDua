@@ -12,11 +12,14 @@ import {
   getActiveNam,
   getTuan,
   initDb,
+  leftoverClassReports,
   listLop,
   listNamHoc,
   listQuyChe,
   listTuan,
+  loaiHinhMismatch,
   setActiveNam,
+  setLopApDung,
   upsertLop,
   upsertQuyChe,
   deleteQuyChe,
@@ -57,6 +60,9 @@ import {
   schoolCalendar,
   saveSchoolCalendar,
   reconcileWeekDates,
+  weekRoster,
+  sampleWeek,
+  deleteSampleWeek,
 } from "./plan.ts";
 import {
   ACTIVITY_FIELDS,
@@ -233,7 +239,16 @@ app.get("/", (req, res) => {
 });
 
 app.get("/lop", (req, res) => {
-  view(env, req, res, "lop.html", { ...ctx(), active: "lop", lops: listLop(con, namId()) });
+  const n = namId();
+  const lops = listLop(con, n, { activeOnly: false });
+  view(env, req, res, "lop.html", {
+    ...ctx(),
+    active: "lop",
+    lops,
+    loai_hinh_mismatch: loaiHinhMismatch(con, n),
+    leftover_reports: leftoverClassReports(con, n),
+    sample_week: sampleWeek(con, n),
+  });
 });
 app.post("/lop/luu", (req, res) => {
   const f = form(req);
@@ -241,12 +256,26 @@ app.post("/lop/luu", (req, res) => {
     id: f.id ? Number(f.id) : undefined,
     ten: f.ten.trim().toUpperCase(),
     khoi: Number(f.khoi || 10),
-    nhom: Number(f.nhom || 1),
+    loai_hinh: f.loai_hinh,
     si_so: Number(f.si_so || 0),
     gvcn: f.gvcn || "",
     thu_tu: Number(f.thu_tu || 0),
+    nu: f.nu === "" ? 0 : Number(f.nu),
+    kt: f.kt === "" ? 0 : Number(f.kt),
+    ap_dung: f.ap_dung === "0" ? 0 : 1,
   });
   flash(res, "Đã lưu lớp");
+  res.redirect("/lop");
+});
+app.post("/lop/:lop_id/ap-dung", (req, res) => {
+  const n = postedNam(req);
+  setLopApDung(con, n, Number(req.params.lop_id), form(req).ap_dung === "0" ? 0 : 1);
+  flash(res, "Đã cập nhật áp dụng lớp");
+  res.redirect("/lop");
+});
+app.post("/tuan/xoa-mau", (req, res) => {
+  deleteSampleWeek(con, postedNam(req));
+  flash(res, "Đã xóa tuần mẫu");
   res.redirect("/lop");
 });
 app.post("/lop/:lop_id/xoa", (req, res) => {
@@ -286,7 +315,7 @@ function reportPage(
     week_start: String(query.week_start || ""),
   });
   const tuan = wf.tuan;
-  const lops = listLop(con, n);
+  const lops = weekRoster(con, n, tuan?.id ? Number(tuan.id) : undefined);
   const currentId = query.lop_id ? Number(query.lop_id) : Number(lops[0]?.id);
   const current = lops.find((lop) => Number(lop.id) === currentId);
   const reported: Record<string, string> = {};
@@ -352,7 +381,7 @@ app.get("/cham-tuan", (req, res) => {
     week_start: String(req.query.week_start || ""),
   });
   const tuan = wf.tuan;
-  const results = tuan?.id ? scoreWeek(con, Number(tuan.id)) : listLop(con, namId()).map((lop) => ({ ...lop, lop_id: Number(lop.id), lines: [] }));
+  const results = tuan?.id ? scoreWeek(con, Number(tuan.id)) : weekRoster(con, namId()).map((lop) => ({ ...lop, lop_id: Number(lop.id), lines: [] }));
   const lopId = req.query.lop_id ? Number(req.query.lop_id) : results[0]?.lop_id;
   const current = results.find((r) => r.lop_id === lopId);
   view(env, req, res, "cham.html", {
@@ -515,6 +544,7 @@ app.get("/ket-qua-tuan", (req, res) => {
     filter_action: "/ket-qua-tuan",
     results,
     status_label: tuan ? TT_LABEL[String(tuan.trang_thai || "nhap")] : "",
+    loai_hinh_mismatch: loaiHinhMismatch(con, namId()),
   });
 });
 

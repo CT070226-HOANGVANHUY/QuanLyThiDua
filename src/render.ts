@@ -10,6 +10,8 @@ const ROUTES: Record<string, string> = {
   lop: "/lop",
   luu_lop: "/lop/luu",
   xoa_lop: "/lop/:lop_id/xoa",
+  ap_dung_lop: "/lop/:lop_id/ap-dung",
+  xoa_tuan_mau: "/tuan/xoa-mau",
   nhap: "/nhap",
   bao_cao_tuan: "/bao-cao-tuan",
   cham_tuan: "/cham-tuan",
