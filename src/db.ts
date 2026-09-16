@@ -2,8 +2,8 @@ import { existsSync, mkdirSync, readFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { DatabaseSync } from "node:sqlite";
-import { GIO_KEYS, KTM_SCORE_KEYS, NN_KEYS, SCORE_FIELDS } from "./scoring.ts";
-import { importRoster2026, migrate } from "./migrate.ts";
+import { GIO_KEYS, KTM_SCORE_KEYS, NN_KEYS, SCORE_FIELDS, type KtmDivisor } from "./scoring.ts";
+import { ensureYearFormula, importRoster2026, migrate } from "./migrate.ts";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 export const DATA_DIR = path.join(ROOT, "data");
@@ -23,6 +23,39 @@ export type SeedClass = {
   loai_hinh: "chon" | "thuong";
 };
 export type ListLopOpts = { activeOnly?: boolean };
+export type { KtmDivisor };
+export type HoiHocDouble = "none" | "hdtt_only" | "week_xt";
+export type Gvcn51Window = "semester" | "weekly";
+export type YearFormula = {
+  nam_id: number;
+  ktm_divisor: KtmDivisor;
+  hk_month_weight: number;
+  hoi_hoc_double: HoiHocDouble;
+  gvcn_5_1_window: Gvcn51Window;
+};
+
+export function yearFormulaOf(con: Db, namId: number): YearFormula {
+  const yf = tableExists(con, "year_formula")
+    ? get(con, "SELECT * FROM year_formula WHERE nam_id=?", [namId])
+    : undefined;
+  return {
+    nam_id: namId,
+    ktm_divisor: yf?.ktm_divisor === "si_so" ? "si_so" : "count",
+    hk_month_weight: Number(yf?.hk_month_weight) || 2,
+    hoi_hoc_double: yf?.hoi_hoc_double === "hdtt_only" || yf?.hoi_hoc_double === "week_xt"
+      ? yf.hoi_hoc_double
+      : "none",
+    gvcn_5_1_window: yf?.gvcn_5_1_window === "weekly" ? "weekly" : "semester",
+  };
+}
+
+export function saveYearFormula(con: Db, namId: number, ktmDivisor: string) {
+  requireActiveYear(con, namId);
+  if (!tableExists(con, "year_formula")) throw new WorkflowError(500, "Chưa có bảng công thức năm học.");
+  const ktm: KtmDivisor = ktmDivisor === "si_so" ? "si_so" : "count";
+  run(con, `INSERT INTO year_formula(nam_id, ktm_divisor) VALUES (?,?)
+    ON CONFLICT(nam_id) DO UPDATE SET ktm_divisor=excluded.ktm_divisor`, [namId, ktm]);
+}
 
 export function loadSeed(): { lop: SeedClass[]; quy_che: [string, string, string, string, string][] } {
   return JSON.parse(readFileSync(path.join(ROOT, "src", "seed.json"), "utf8"));
@@ -233,6 +266,7 @@ export function initDb(con: Db): void {
   run(con, "INSERT INTO nam_hoc(ten, active) VALUES (?, 1)", [ROSTER_YEAR]);
   const namId = Number(get(con, "SELECT id FROM nam_hoc WHERE ten=?", [ROSTER_YEAR])!.id);
   importRoster2026(con, namId);
+  ensureYearFormula(con);
   for (const row of seed.quy_che) {
     run(con, "INSERT INTO quy_che(stt, muc, noi_dung, diem, ghi_chu) VALUES (?,?,?,?,?)", row);
   }
@@ -284,6 +318,14 @@ export function addNamHoc(con: Db, ten: string, copyFrom?: number) {
     if (get(con, "SELECT name FROM sqlite_master WHERE type='table' AND name='period_options'")) {
       run(con, `INSERT INTO period_options(nam_id,model,semester,include_exam,exclude_activity)
         SELECT ?,model,semester,include_exam,exclude_activity FROM period_options WHERE nam_id=?`, [newId, copyFrom]);
+    }
+  }
+  if (tableExists(con, "year_formula")) {
+    run(con, "INSERT OR IGNORE INTO year_formula(nam_id) VALUES (?)", [newId]);
+    if (copyFrom) {
+      const src = yearFormulaOf(con, copyFrom);
+      run(con, `UPDATE year_formula SET ktm_divisor=?, hk_month_weight=?, hoi_hoc_double=?, gvcn_5_1_window=? WHERE nam_id=?`,
+        [src.ktm_divisor, src.hk_month_weight, src.hoi_hoc_double, src.gvcn_5_1_window, newId]);
     }
   }
   return newId;

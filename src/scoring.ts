@@ -1,6 +1,6 @@
 export type Col3 = [string, string, string];
 export type ColW = [string, string, number];
-export type LoiMau = [string, string, number, string];
+export type KtmDivisor = "count" | "si_so";
 
 export const NN_COLS: Col3[] = [
   ["trang_tri", "Trang trí", "−5 điểm / 1 lỗi"],
@@ -9,7 +9,7 @@ export const NN_COLS: Col3[] = [
   ["sh15", "SH 15 phút", "ra ngoài −1/HS; mất TT −10; không KT −5"],
   ["td_cc", "TD / chào cờ", "−1/HS; tập thể −10"],
   ["di_muon", "Đi muộn", "−5/HS"],
-  ["phu_hieu", "Phù hiệu", "không đeo −1; quên −2; giả −10"],
+  ["phu_hieu", "Phù hiệu", "không đeo −1; quên −2; giả −30"],
   ["trang_phuc", "Trang phục", "−1/HS"],
   ["xe_dap", "Xe (sân / để xe / VS)", "sân −10; để sai −1; VS −5/lớp"],
   ["giao_thong", "Giao thông", "không mũ −30; đội sai −10; làn −5"],
@@ -41,51 +41,6 @@ export const HT_KTM_COLS: ColW[] = [
 export const NN_KEYS = NN_COLS.map((c) => c[0]);
 export const GIO_KEYS = HT_GIO_COLS.map((c) => c[0]);
 export const KTM_SCORE_KEYS = HT_KTM_COLS.map((c) => c[0]);
-
-export const LOI_MAU: LoiMau[] = [
-  ["di_muon", "Đi học muộn", 5, "HS"],
-  ["nghi_hoc", "Nghỉ không lý do / bỏ giờ / không báo sĩ số", 10, "HS"],
-  ["trang_phuc", "Trang phục không đúng", 1, "HS"],
-  ["phu_hieu", "Phù hiệu có mà không đeo", 1, "HS"],
-  ["phu_hieu", "Phù hiệu quên hoặc mất", 2, "HS"],
-  ["phu_hieu", "Phù hiệu giả / năm học trước", 10, "HS"],
-  ["trang_tri", "Trang trí lớp (thiếu 1 = 1 lỗi)", 5, "lỗi"],
-  ["xep_hang", "Xếp hàng — theo học sinh", 1, "HS"],
-  ["xep_hang", "Xếp hàng — tập thể", 10, "lần"],
-  ["hat", "Hát đầu giờ — theo học sinh", 1, "HS"],
-  ["hat", "Hát đầu giờ — tập thể", 10, "lần"],
-  ["sh15", "SH 15 phút — ra ngoài / đi lại tự do", 1, "HS"],
-  ["sh15", "SH 15 phút — lớp mất trật tự", 10, "lần"],
-  ["sh15", "SH 15 phút — không kiểm tra bài", 5, "lần"],
-  ["td_cc", "TD giữa giờ / chào cờ — theo HS", 1, "HS"],
-  ["td_cc", "TD giữa giờ / chào cờ — tập thể", 10, "lần"],
-  ["giao_thong", "Không đội mũ bảo hiểm", 30, "HS"],
-  ["giao_thong", "Đội mũ bảo hiểm không đúng", 10, "HS"],
-  ["giao_thong", "Sai làn đường / không xi nhan", 5, "HS"],
-  ["xe_dap", "Đi xe trong sân trường", 10, "HS"],
-  ["xe_dap", "Để xe không đúng quy định", 1, "HS"],
-  ["xe_dap", "Không vệ sinh nhà xe", 5, "lớp"],
-  ["tnkt", "TNKT làm nhiệm vụ muộn", 5, "HS"],
-  ["tnkt", "TNKT bỏ nhiệm vụ / không nộp sổ", 10, "HS"],
-  ["ve_sinh", "Không vệ sinh", 10, "lỗi"],
-  ["ve_sinh", "Vệ sinh muộn / bẩn / rác / ghế", 5, "lỗi"],
-  ["ve_sinh", "Không lấy / lấy sai bình nước", 10, "lần"],
-  ["ve_sinh", "Không khóa cửa / tắt điện / giao chìa", 10, "lỗi"],
-  ["sdb_y_thuc", "Ghi SĐB ý thức — cá nhân", 1, "HS"],
-  ["sdb_y_thuc", "Ghi SĐB ý thức — tập thể", 10, "lần"],
-  ["sdb_hoc_tap", "Ghi SĐB học tập — cá nhân", 1, "HS"],
-  ["sdb_hoc_tap", "Ghi SĐB học tập — tập thể", 10, "lần"],
-  ["bao_cao_bi_thu", "Bí thư không nộp sổ / sai cao hơn", 20, "lần"],
-  ["bao_cao_bi_thu", "Bí thư tổng hợp sai thấp hơn", 10, "lần"],
-  ["vp_khac", "Bánh kẹo / tự ý ra khỏi trường", 10, "HS"],
-  ["hs_ky_luat", "Kỷ luật mức −30 (xe, gian lận, phá TS, ĐT…)", 30, "HS"],
-  ["hs_ky_luat", "Kỷ luật mức −50 (vô lễ, đánh nhau, chất cấm…)", 50, "HS"],
-  ["ve_sinh", "Vệ sinh muộn — bình nước", 5, "lần"],
-  ["ve_sinh", "Thiếu gậy / cốc uống nước", 1, "lỗi"],
-  ["sdb_y_thuc", "Chống đối cán bộ chấm thi đua", 10, "HS"],
-  ["sdb_hoc_tap", "Không có SGK / đồ dùng học tập", 1, "HS"],
-  ["van_nghe", "Tiết mục văn nghệ được cộng", -5, "tiết mục"],
-];
 
 export const SCORE_FIELDS = [...NN_KEYS, ...GIO_KEYS, "ktm_ge5", "ktm_lt5", ...KTM_SCORE_KEYS, "ghi_chu"];
 
@@ -121,12 +76,15 @@ export function tbGio(row: Row): number {
 export function diemKtm(row: Row): number {
   return HT_KTM_COLS.reduce((s, [k, , w]) => s + num(row, k) * w, 0);
 }
-export function tbKtm(row: Row): number {
-  const n = num(row, "ktm_9_10") + num(row, "ktm_7_8") + num(row, "ktm_5_6") + num(row, "ktm_3_4") + num(row, "ktm_0_2");
+export function ktmCount(row: Row): number {
+  return num(row, "ktm_9_10") + num(row, "ktm_7_8") + num(row, "ktm_5_6") + num(row, "ktm_3_4") + num(row, "ktm_0_2");
+}
+export function tbKtm(row: Row, divisor: KtmDivisor = "count", siSo = 0): number {
+  const n = divisor === "si_so" ? Number(siSo || 0) : ktmCount(row);
   return n > 0 ? diemKtm(row) / n : 0;
 }
-export function tbHocTap(row: Row): number {
-  return tbGio(row) + tbKtm(row);
+export function tbHocTap(row: Row, divisor: KtmDivisor = "count", siSo = 0): number {
+  return tbGio(row) + tbKtm(row, divisor, siSo);
 }
 export function tongCong(row: Row): number {
   return diemGio(row) + diemKtm(row);
@@ -170,9 +128,10 @@ export type ClassResult = {
   xt_ht: number;
   tong_xt: number;
   xt_chung: number;
+  tb_ktm_divisor?: KtmDivisor;
 };
 
-export function scoreGroup(items: ClassResult[]): ClassResult[] {
+export function scoreGroup(items: ClassResult[], ktmDivisor: KtmDivisor = "count"): ClassResult[] {
   for (const it of items) {
     const r = it.row;
     it.diem_nn = diemNn(r);
@@ -181,8 +140,9 @@ export function scoreGroup(items: ClassResult[]): ClassResult[] {
     it.so_gio = soGio(r);
     it.tb_gio = tbGio(r);
     it.diem_ktm = diemKtm(r);
-    it.tb_ktm = tbKtm(r);
-    it.tb_ht = tbHocTap(r);
+    it.tb_ktm = tbKtm(r, ktmDivisor, it.si_so);
+    it.tb_ht = tbHocTap(r, ktmDivisor, it.si_so);
+    it.tb_ktm_divisor = ktmDivisor;
     it.tong_tru = tongTru(r);
     it.tong_cong = tongCong(r);
     it.tong_net = tongNet(r);
@@ -201,7 +161,7 @@ export function scoreGroup(items: ClassResult[]): ClassResult[] {
   return items;
 }
 
-export function scoreAll(items: ClassResult[]): ClassResult[] {
+export function scoreAll(items: ClassResult[], ktmDivisor: KtmDivisor = "count"): ClassResult[] {
   const by = new Map<number, ClassResult[]>();
   for (const it of items) {
     const g = by.get(it.nhom) ?? [];
@@ -209,6 +169,6 @@ export function scoreAll(items: ClassResult[]): ClassResult[] {
     by.set(it.nhom, g);
   }
   const out: ClassResult[] = [];
-  for (const g of [...by.keys()].sort((a, b) => a - b)) out.push(...scoreGroup(by.get(g)!));
+  for (const g of [...by.keys()].sort((a, b) => a - b)) out.push(...scoreGroup(by.get(g)!, ktmDivisor));
   return out;
 }

@@ -1,4 +1,4 @@
-import { addColumn, all, get, getTuan, inTransaction, listLop, listTuan, requireActiveYear, requireOwned, run, SAMPLE_WEEK_NOTE, tableExists, transaction, upsertTuan, WorkflowError, type Db, type Dict } from "./db.ts";
+import { addColumn, all, get, getTuan, inTransaction, listLop, listTuan, requireActiveYear, requireOwned, run, SAMPLE_WEEK_NOTE, tableExists, transaction, upsertTuan, WorkflowError, yearFormulaOf, type Db, type Dict } from "./db.ts";
 import { migrate } from "./migrate.ts";
 import { GIO_KEYS, KTM_SCORE_KEYS, NN_KEYS, competitionRanks, scoreAll, type ClassResult, type Row } from "./scoring.ts";
 
@@ -29,6 +29,7 @@ const SEED: [string, string, string, number, string][] = [
   ["gio_kha", "Giờ khá", "hoc_tap", 1, "giờ"],
   ["gio_tb", "Giờ trung bình", "hoc_tap", 0, "giờ"],
   ["gio_yeu", "Giờ yếu", "hoc_tap", -1, "giờ"],
+  ["gio_kem", "Giờ kém", "hoc_tap", -2, "giờ"],
   ["ktm_9_10", "Điểm kiểm tra 9–10", "hoc_tap", 2, "điểm"],
   ["ktm_7_8", "Điểm kiểm tra 7–8", "hoc_tap", 1, "điểm"],
   ["ktm_5_6", "Điểm kiểm tra 5–6", "hoc_tap", 0, "điểm"],
@@ -38,7 +39,7 @@ const SEED: [string, string, string, number, string][] = [
   ["giao_thong", "Không đội mũ bảo hiểm", "khac", -30, "HS"],
   ["van_nghe", "Văn nghệ", "ne_nep", 5, "tiết mục"],
   ["phu_hieu_quen", "Phù hiệu quên hoặc mất", "ne_nep", -2, "HS"],
-  ["phu_hieu_gia", "Phù hiệu giả / năm học trước", "ne_nep", -10, "HS"],
+  ["phu_hieu_gia", "Phù hiệu giả / năm học trước", "ne_nep", -30, "HS"],
   ["ve_sinh_binh_nuoc_muon", "Vệ sinh muộn — bình nước", "ne_nep", -5, "lần"],
   ["ve_sinh_thieu_gay_coc", "Thiếu gậy / cốc uống nước", "ne_nep", -1, "lỗi"],
   ["chong_doi", "Chống đối cán bộ chấm thi đua", "ne_nep", -10, "HS"],
@@ -60,6 +61,7 @@ const CRITERION_VARIANTS: [string, string, string, number, string][] = [
   ["giao_thong_sai_lan", "Sai làn đường / không xi nhan", "giao_thong", -5, "HS"],
   ["xe_dap_trong_san", "Đi xe trong sân trường", "xe_dap", -10, "HS"],
   ["xe_dap_de_sai", "Để xe không đúng quy định", "xe_dap", -1, "HS"],
+  ["xe_dap_de_sai_tap_the", "Để xe không đúng quy định — tập thể", "xe_dap", -10, "lần"],
   ["xe_dap_khong_ve_sinh", "Không vệ sinh nhà xe", "xe_dap", -5, "lớp"],
   ["tnkt_muon", "TNKT làm nhiệm vụ muộn", "tnkt", -5, "HS"],
   ["tnkt_bo_nhiem_vu", "TNKT bỏ nhiệm vụ / không nộp sổ", "tnkt", -10, "HS"],
@@ -862,7 +864,8 @@ function scoreWeekCore(con: Db, tuanId: number): ClassWeek[] {
   if (!week) return [];
   const inputs = buildWeekInputs(con, Number(week.nam_hoc_id), tuanId);
   const available = inputs.filter((input) => Boolean(input.report) || input.reportStatus === "legacy");
-  const scored = scoreAll(available.map((input) => blankResult(input.lop, input.row)));
+  const ktmDivisor = yearFormulaOf(con, Number(week.nam_hoc_id)).ktm_divisor;
+  const scored = scoreAll(available.map((input) => blankResult(input.lop, input.row)), ktmDivisor);
   const scoredById = new Map(scored.map((result) => [result.lop_id, result]));
   const groupComplete = new Map<number, boolean>();
   for (const input of inputs) {

@@ -69,7 +69,10 @@ test("v4 roster migrates to v5 columns, backfill, leftover ap_dung=0 and nhap we
   try {
     assert.equal(get(db, "PRAGMA user_version")?.user_version, 4);
     migrate(db);
-    assert.equal(get(db, "PRAGMA user_version")?.user_version, 5);
+    assert.equal(get(db, "PRAGMA user_version")?.user_version, 6);
+    assert.equal(get(db, "SELECT COUNT(*) AS n FROM year_formula WHERE nam_id=1")?.n, 1);
+    assert.equal(get(db, "SELECT ktm_divisor FROM year_formula WHERE nam_id=1")?.ktm_divisor, "count");
+    assert.equal(get(db, "SELECT hk_month_weight FROM year_formula WHERE nam_id=1")?.hk_month_weight, 2);
     for (const col of ["nu", "kt", "loai_hinh", "ap_dung", "gvcn_group_id"]) {
       assert.ok(colNames(db, "lop").includes(col), `lop.${col}`);
     }
@@ -167,7 +170,7 @@ test("v5 backup is VACUUM INTO beside the db file and skipped for memory", () =>
     assert.ok(get(backup, "SELECT id FROM lop WHERE ten='10A7'"));
     assert.equal(get(backup, "SELECT ten FROM lop WHERE ten='10D1'"), undefined);
     migrate(db);
-    assert.equal(get(db, "PRAGMA user_version")?.user_version, 5);
+    assert.equal(get(db, "PRAGMA user_version")?.user_version, 6);
   } finally {
     backup?.close();
     db.close();

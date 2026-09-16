@@ -89,8 +89,55 @@ function migrateV5(con: Db) {
   importRoster2026(con);
 }
 
+export function ensureYearFormula(con: Db) {
+  con.exec(`CREATE TABLE IF NOT EXISTS year_formula (
+  nam_id INTEGER PRIMARY KEY REFERENCES nam_hoc(id) ON DELETE CASCADE,
+  ktm_divisor TEXT NOT NULL DEFAULT 'count' CHECK(ktm_divisor IN ('count','si_so')),
+  hk_month_weight REAL NOT NULL DEFAULT 2,
+  hoi_hoc_double TEXT NOT NULL DEFAULT 'none' CHECK(hoi_hoc_double IN ('none','hdtt_only','week_xt')),
+  gvcn_5_1_window TEXT NOT NULL DEFAULT 'semester' CHECK(gvcn_5_1_window IN ('semester','weekly'))
+)`);
+  if (tableExists(con, "nam_hoc")) {
+    run(con, "INSERT OR IGNORE INTO year_formula(nam_id) SELECT id FROM nam_hoc");
+  }
+}
+
+function hasColumn(con: Db, table: string, name: string) {
+  return all(con, `PRAGMA table_info(${table})`).some((column) => column.name === name);
+}
+
+function migrateCatalogV6(con: Db) {
+  if (tableExists(con, "tieu_chi")) {
+    run(con, "UPDATE tieu_chi SET diem=-30 WHERE ma='phu_hieu_gia'");
+    const withScoreKey = hasColumn(con, "tieu_chi", "score_key");
+    const extra: [string, string, string, number, string, string][] = [
+      ["gio_kem", "Giờ kém", "hoc_tap", -2, "giờ", "gio_kem"],
+      ["xe_dap_de_sai_tap_the", "Để xe không đúng quy định — tập thể", "ne_nep", -10, "lần", "xe_dap"],
+    ];
+    for (const nam of all(con, "SELECT id FROM nam_hoc")) {
+      for (const [ma, ten, nhom, diem, donVi, scoreKey] of extra) {
+        if (withScoreKey) {
+          run(con, `INSERT INTO tieu_chi(nam_hoc_id,ma,ten,nhom,diem,don_vi,ap_dung,score_key) VALUES (?,?,?,?,?,?,1,?)
+            ON CONFLICT(nam_hoc_id,ma) DO NOTHING`, [nam.id, ma, ten, nhom, diem, donVi, scoreKey]);
+        } else {
+          run(con, `INSERT INTO tieu_chi(nam_hoc_id,ma,ten,nhom,diem,don_vi,ap_dung) VALUES (?,?,?,?,?,?,1)
+            ON CONFLICT(nam_hoc_id,ma) DO NOTHING`, [nam.id, ma, ten, nhom, diem, donVi]);
+        }
+      }
+    }
+  }
+  if (tableExists(con, "quy_che")) {
+    run(con, "UPDATE quy_che SET diem='−30/HS' WHERE noi_dung LIKE '%hù hiệu giả%'");
+  }
+}
+
+function migrateV6(con: Db) {
+  ensureYearFormula(con);
+  migrateCatalogV6(con);
+}
+
 export function migrate(con: Db): void {
-  const steps: [number, (con: Db) => void][] = [[5, migrateV5]];
+  const steps: [number, (con: Db) => void][] = [[5, migrateV5], [6, migrateV6]];
   for (const [n, step] of steps) {
     if (userVersion(con) < n) {
       step(con);
@@ -98,4 +145,5 @@ export function migrate(con: Db): void {
     }
   }
   ensureV5Columns(con);
+  ensureYearFormula(con);
 }

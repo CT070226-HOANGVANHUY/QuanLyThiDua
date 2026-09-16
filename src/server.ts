@@ -18,7 +18,9 @@ import {
   listQuyChe,
   listTuan,
   loaiHinhMismatch,
+  saveYearFormula,
   setActiveNam,
+  yearFormulaOf,
   setLopApDung,
   upsertLop,
   upsertQuyChe,
@@ -662,7 +664,20 @@ app.post("/quy-che/:id/xoa", (req, res) => {
   flash(res, "Đã xóa");
   res.redirect("/quy-che");
 });
-app.get("/cong-thuc", (req, res) => view(env, req, res, "formulas.html", { ...ctx(), active: "formulas" }));
+app.get("/cong-thuc", (req, res) => {
+  const n = getActiveNam(con);
+  view(env, req, res, "formulas.html", {
+    ...ctx(),
+    active: "formulas",
+    year_formula: n ? yearFormulaOf(con, Number(n.id)) : undefined,
+  });
+});
+app.post("/cong-thuc", (req, res) => {
+  const n = postedNam(req);
+  saveYearFormula(con, n, form(req).ktm_divisor);
+  flash(res, "Đã lưu mẫu số TB KTM");
+  res.redirect("/cong-thuc");
+});
 app.get("/ket-qua-hoc-ky", (req, res) => res.redirect(`/tong-hop?${new URLSearchParams(req.query as Record<string, string>)}`));
 
 app.all("/danh-gia", (req, res) => {

@@ -1,4 +1,4 @@
-import { all, get, listLop, listTuan, requireActiveYear, requireOwned, run, transaction, WorkflowError, type Db, type Dict } from "./db.ts";
+import { all, get, listLop, listTuan, requireActiveYear, requireOwned, run, transaction, WorkflowError, yearFormulaOf, type Db, type Dict } from "./db.ts";
 import { schoolCalendar, scoreWeek } from "./plan.ts";
 import { activityResults, examResults } from "./assessments.ts";
 import { competitionRanks } from "./scoring.ts";
@@ -227,11 +227,12 @@ export function periodTable(
     title = `Học kỳ ${key}`;
     const options = optionsOf(con, namId, model, Number(key));
     const includeExam = model === "monthly" && key === "2" && Number(options.include_exam);
+    const hkWeight = model === "monthly" ? yearFormulaOf(con, namId).hk_month_weight : 2;
     let constituents: [string, string, Dict][] = [];
     let weights: number[] = [];
     let ready = true;
     if (model === "monthly") {
-      source = "HKI: K=H+J; HKII: K=H+I+J nếu bật thi.";
+      source = `Tổng XT HK = Tổng XT theo tháng × ${hkWeight} + XT HĐTT.`;
       constituents = months.filter((m) => m.semester === Number(key)).map((m) => [m.key, `XT tháng ${m.key}`, periodTable(con, namId, "thang", m.key, model, view)]);
       weights = constituents.map(() => 1);
       ready = !months.some((m) => m.semester === Number(key) && m.conflict);
@@ -265,10 +266,20 @@ export function periodTable(
     for (const row of rows) {
       row.rank_activity = activities[Number(row.lop_id)]?.xt ?? null;
       row.rank_exam = exams[Number(row.lop_id)]?.xt ?? null;
-      const values: (number | null)[] = [row.rank_td == null ? null : Number(row.rank_td) * (model === "halves" ? 2 : 1)];
-      if (!Number(options.exclude_activity)) values.push(row.rank_activity == null ? null : Number(row.rank_activity));
-      if (includeExam) values.push(row.rank_exam == null ? null : Number(row.rank_exam));
-      row.total = values.every((v) => v != null) ? values.reduce((a, b) => a + Number(b), 0) : null;
+      if (model === "monthly") {
+        const hdtt = Number(options.exclude_activity) ? 0 : row.rank_activity;
+        const exam = includeExam ? row.rank_exam : 0;
+        row.total = row.td_total == null
+          || (!Number(options.exclude_activity) && row.rank_activity == null)
+          || (includeExam && row.rank_exam == null)
+          ? null
+          : Number(row.td_total) * hkWeight + Number(hdtt) + Number(exam);
+      } else {
+        const values: (number | null)[] = [row.rank_td == null ? null : Number(row.rank_td) * 2];
+        if (!Number(options.exclude_activity)) values.push(row.rank_activity == null ? null : Number(row.rank_activity));
+        if (includeExam) values.push(row.rank_exam == null ? null : Number(row.rank_exam));
+        row.total = values.every((v) => v != null) ? values.reduce((a, b) => a + Number(b), 0) : null;
+      }
     }
     rankField(rows, "total");
     columns.push(
