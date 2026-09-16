@@ -368,9 +368,14 @@ test('TNKT catalog maps leftover SEED keys, omits paper prefixes, and rejects un
     assert.ok(catalogMa.includes('chong_doi'));
     assert.ok(catalogMa.includes('thieu_sgk'));
     assert.ok(catalogMa.includes('ve_sinh_binh_nuoc_muon'));
-    for (const ma of ['nghi_hoc', 'di_muon', 'trang_phuc', 'phu_hieu', 'vp_khac', 'van_nghe']) {
+    for (const ma of ['nghi_hoc', 'di_muon', 'trang_phuc', 'phu_hieu', 'vp_khac', 'van_nghe', 'thai_do']) {
       assert.equal(catalogMa.includes(ma), false, ma);
     }
+    const thaiDo = Number(get(db, "SELECT id FROM tieu_chi WHERE nam_hoc_id=1 AND ma='thai_do'")?.id);
+    const asCatalog = parseReport(reportForm({
+      vp_0_tieu_chi_id: String(thaiDo), vp_0_ho_ten: 'A', vp_0_ngay: '2026-09-11',
+    }), week);
+    assert.throws(() => saveReport(db, 1, { tuan_id: Number(week.id) }, 1, 0, asCatalog, 'save'), { status: 400 });
     run(db, "INSERT INTO tieu_chi(nam_hoc_id,ma,ten,nhom,diem,don_vi,ap_dung) VALUES (1,'unmapped_x','X','ne_nep',-1,'HS',1)");
     const unmapped = Number(get(db, "SELECT id FROM tieu_chi WHERE nam_hoc_id=1 AND ma='unmapped_x'")?.id);
     const parsed = parseReport(reportForm({

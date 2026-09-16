@@ -463,7 +463,7 @@ export function mappedNnScoreKey(scoreKey: unknown) {
   return NN_KEYS.includes(key) || key === "cong_ne_nep";
 }
 
-const PAPER_CATALOG_MA = new Set(["nghi_hoc", "di_muon", "trang_phuc", "phu_hieu", "vp_khac", "van_nghe"]);
+const PAPER_CATALOG_MA = new Set(["nghi_hoc", "di_muon", "trang_phuc", "phu_hieu", "vp_khac", "van_nghe", "thai_do"]);
 
 export function catalogTieuChi(con: Db, namId: number) {
   return listTieuChi(con, namId, true).filter((criterion) =>
@@ -807,7 +807,9 @@ function insertSuKien(con: Db, namId: number, baoCaoId: number, loai: string, ro
     const tieuChiId = Number(row.tieu_chi_id);
     const criterion = get(con, "SELECT * FROM tieu_chi WHERE id=? AND nam_hoc_id=? AND ap_dung=1", [tieuChiId, namId]);
     if (!criterion) throw new WorkflowError(400, "Tiêu chí không hợp lệ.");
-    if (!mappedNnScoreKey(criterion.score_key)) throw new WorkflowError(400, "Tiêu chí chưa ánh xạ.");
+    if (!mappedNnScoreKey(criterion.score_key) || PAPER_CATALOG_MA.has(String(criterion.ma))) {
+      throw new WorkflowError(400, "Tiêu chí chưa ánh xạ.");
+    }
     const storedLoai = String(criterion.score_key || "vp");
     run(con, `INSERT INTO su_kien(bao_cao_id,loai,ho_ten,ngay,so_luong,tiet_mon,noi_dung,ghi_chu,tieu_chi_id,tap_the,gvcn_phat_hien,nguon)
       VALUES (?,?,?,?,?,?,?,?,?,?,?,'tnkt')`,
