@@ -33,7 +33,7 @@
   {% if not current.bao_cao %}
   <div class="empty-state">
     <b>Chưa nhập dữ liệu lớp {{ current.ten }}</b>
-    <p>Nhập tuần trước; điểm và xếp hạng sẽ được tính từ dữ liệu có nguồn.</p>
+    <p>Hãy nhập tuần này trước khi chấm; điểm và xếp hạng sẽ được tính từ dữ liệu đã nhập.</p>
     <a class="btn" href="{{ url_for('bao_cao_tuan',nam_id=nam.id,nam=year,thang=month,week_start=selection.week_start,tuan_id=selection.tuan_id,lop_id=current.lop_id) }}">Mở nhập tuần</a>
   </div>
   {% else %}

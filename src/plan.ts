@@ -1,4 +1,4 @@
-import { addColumn, all, get, getTuan, listLop, listTuan, requireActiveYear, requireOwned, run, transaction, upsertTuan, WorkflowError, type Db, type Dict } from "./db.ts";
+import { addColumn, all, get, getTuan, inTransaction, listLop, listTuan, requireActiveYear, requireOwned, run, transaction, upsertTuan, WorkflowError, type Db, type Dict } from "./db.ts";
 import { GIO_KEYS, KTM_SCORE_KEYS, NN_KEYS, competitionRanks, scoreAll, type ClassResult, type Row } from "./scoring.ts";
 
 export const TT_NHAP = "nhap";
@@ -376,7 +376,7 @@ export function weekFilter(con: Db, namId: number, q: { nam?: string; thang?: st
 }
 
 export function resolveWeekForWrite(con: Db, namId: number, selection: { tuan_id?: number; week_start?: string }): Dict {
-  if (!con.isTransaction) throw new Error("resolveWeekForWrite phải được gọi trong transaction.");
+  if (!inTransaction(con)) throw new Error("resolveWeekForWrite phải được gọi trong transaction.");
   requireActiveYear(con, namId);
   if (selection.tuan_id !== undefined) {
     const week = requireOwned(con, "tuan", selection.tuan_id, namId);
