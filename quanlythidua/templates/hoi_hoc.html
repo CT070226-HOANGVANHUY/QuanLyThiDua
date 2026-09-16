@@ -10,10 +10,10 @@
       {% endfor %}
     </select>
   </div>
-  <div class="field"><label>Dữ liệu</label>
+  <div class="field"><label>Lấy số liệu</label>
     <select name="view" onchange="this.form.submit()">
-      <option value="official" {% if resultView=='official' %}selected{% endif %}>Chính thức</option>
-      <option value="preview" {% if resultView=='preview' %}selected{% endif %}>Xem trước</option>
+      <option value="official" {% if resultView=='official' %}selected{% endif %}>Chỉ tuần đã công bố</option>
+      <option value="preview" {% if resultView=='preview' %}selected{% endif %}>Xem thử</option>
     </select>
   </div>
   <a class="btn-gold" href="/xuat/bao-cao?scope={{ table.milestone.loai }}&key={{ table.milestone.id }}&model=monthly&view={{ resultView }}&format=xlsx&cut=school">Xuất Excel</a>
@@ -24,7 +24,7 @@
   <p class="muted">{{ table.source }}</p>
   {% for note in table.notes %}<p class="notice">{{ note }}</p>{% endfor %}
   {% if not table.weeks or table.weeks|length == 0 %}
-  <p class="notice">Chưa gán tuần thành viên. Chọn tuần trên trang Năm học.</p>
+  <p class="notice">Chưa chọn 4 tuần của đợt này. Mở <a href="/nam-hoc">Năm học và lịch</a> để đánh dấu tuần.</p>
   {% endif %}
   <form method="post" action="/hoi-hoc/ghi-chu">
     <input type="hidden" name="nam_id" value="{{ nam.id }}">

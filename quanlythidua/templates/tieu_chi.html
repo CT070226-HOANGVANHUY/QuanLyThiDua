@@ -1,7 +1,8 @@
 {% extends "base.html" %}
 {% block title %}Tiêu chí{% endblock %}
 {% block body %}
-<h1 class="page-title">Tiêu chí thi đua</h1>
+<h1 class="page-title">Tiêu chí trừ điểm</h1>
+<p class="page-sub">Mỗi lỗi trừ bao nhiêu điểm. Thường không cần sửa — đã theo quy chế năm nay.</p>
 <form method="post" action="{{ url_for('diem_co_so') }}" class="toolbar">
   <input type="hidden" name="nam_id" value="{{ nam.id }}">
   <div class="field"><label>Điểm cơ sở</label><input name="diem_co_so" type="number" step="any" value="{{ base }}"></div>

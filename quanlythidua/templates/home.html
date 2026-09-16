@@ -1,47 +1,61 @@
 {% extends "base.html" %}
-{% block title %}Tổng quan{% endblock %}
+{% block title %}Hôm nay làm gì{% endblock %}
 {% block body %}
 <div class="page-head">
-  <h1 class="page-title">Tổng quan</h1>
+  <h1 class="page-title">Hôm nay làm gì</h1>
   {% include "week_filter.html" %}
 </div>
-<p class="page-sub">{% if tuan and tuan.ngay_bd %}{{ tuan.ngay_bd }} → {{ tuan.ngay_kt }}{% if tuan.calendar_no %} · Tuần {{ tuan.calendar_no }}{% endif %}{% else %}{{ tuan_hien_tai }}{% endif %} · {{ status_label }}</p>
+<p class="page-sub">{% if tuan and tuan.ngay_bd %}Tuần {{ tuan.calendar_no or '' }}: {{ tuan.ngay_bd }} → {{ tuan.ngay_kt }}{% else %}{{ tuan_hien_tai }}{% endif %}{% if status_label %} · {{ status_label }}{% endif %}</p>
+
+{% if next_step %}
+<div class="next-box">
+  <div>
+    <h2>{{ next_step.title }}</h2>
+    <p>{{ next_step.text }}</p>
+  </div>
+  {% if next_step.href != '/' or next_step.label != 'Ở lại trang này' %}
+  <a class="btn" href="{{ next_step.href }}">{{ next_step.label }}</a>
+  {% endif %}
+</div>
+{% endif %}
+
 <div class="stats">
-  <div class="stat blue"><div class="k">Lớp</div><div class="v">{{ so_lop }}</div></div>
-  <div class="stat green"><div class="k">Đã hoàn tất</div><div class="v">{{ da_bao }}</div></div>
-  <div class="stat yellow"><div class="k">Chưa hoàn tất</div><div class="v">{{ chua_bao }}</div></div>
-  <div class="stat purple"><div class="k">Vi phạm</div><div class="v">{{ so_vp }}</div></div>
+  <div class="stat blue"><div class="k">Lớp đang thi đua</div><div class="v">{{ so_lop }}</div></div>
+  <div class="stat green"><div class="k">Đã hoàn tất tuần này</div><div class="v">{{ da_bao }}</div></div>
+  <div class="stat yellow"><div class="k">Còn phải nhập</div><div class="v">{{ chua_bao }}</div></div>
+  <div class="stat purple"><div class="k">Vi phạm đã ghi</div><div class="v">{{ so_vp }}</div></div>
 </div>
 <div class="two">
   <div class="card">
-    <div class="card-h"><h3>Top tuần đang chọn</h3></div>
+    <div class="card-h"><h3>Hạng tuần đang chọn</h3></div>
     {% if tops %}
     <table class="data">
-      <thead><tr><th>Nhóm</th><th>XT</th><th>Lớp</th><th>Trạng thái</th></tr></thead>
+      <thead><tr><th>Loại</th><th>Hạng</th><th>Lớp</th><th></th></tr></thead>
       <tbody>
       {% for it in tops %}
       <tr>
-        <td>{{ it.nhom }}</td><td><span class="rank {% if it.xt_chung==1 %}g{% endif %}">{{ it.xt_chung }}</span></td>
+        <td>{{ 'Lớp chọn' if it.nhom==1 else 'Lớp thường' }}</td>
+        <td><span class="rank {% if it.xt_chung==1 %}g{% endif %}">{{ it.xt_chung }}</span></td>
         <td><a href="{{ url_for('cham_tuan', nam_id=nam.id, nam=year, thang=month, week_start=selection.week_start, tuan_id=selection.tuan_id, lop_id=it.lop_id) }}"><b>{{ it.ten }}</b></a></td>
-        <td>{{ 'Chính thức' if it.rank_status=='official' else 'Tạm tính' }}</td>
+        <td>{{ 'Đã công bố' if it.rank_status=='official' else 'Chưa công bố' }}</td>
       </tr>
       {% endfor %}
       </tbody>
     </table>
-    {% else %}<p class="muted">Chưa có xếp hạng tuần này.</p>{% endif %}
+    {% else %}<p class="muted">Chưa có hạng vì chưa nhập lớp nào tuần này.</p>{% endif %}
   </div>
   <div class="card">
-    <div class="card-h"><h3>Vi phạm phổ biến</h3></div>
+    <div class="card-h"><h3>Lỗi hay gặp tuần này</h3></div>
     {% if pho_bien %}
     <table class="data">
       {% for v in pho_bien %}<tr><td>{{ v.ten }}</td><td><b>{{ v.sl }}</b></td></tr>{% endfor %}
     </table>
-    {% else %}<p class="muted">Chưa có dữ liệu tuần.</p>{% endif %}
+    {% else %}<p class="muted">Chưa có vi phạm đã ghi.</p>{% endif %}
   </div>
 </div>
 {% if chart %}
 <div class="chart-card">
-  <div class="chart-head"><b>Số lớp đã hoàn tất</b><span>tuần có dữ liệu gần đây</span></div>
+  <div class="chart-head"><b>Số lớp đã hoàn tất</b><span>một vài tuần gần đây</span></div>
   <div class="bars">
     {% for c in chart %}
     <div class="bar-col">
@@ -54,4 +68,5 @@
   </div>
 </div>
 {% endif %}
+<p class="hint" style="margin-top:16px"><a href="{{ url_for('huong_dan') }}">Xem cách dùng đầy đủ</a></p>
 {% endblock %}

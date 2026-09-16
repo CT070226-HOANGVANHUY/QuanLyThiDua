@@ -1,71 +1,64 @@
 {% extends "base.html" %}
-{% block title %}Công thức các bảng{% endblock %}
+{% block title %}Cách tính điểm{% endblock %}
 {% block body %}
-<h1 class="page-title">Công thức và nguồn dữ liệu</h1>
-<p class="page-sub">Công thức tuần / kỳ 2026–2027. Ban in tuần 10 (2025–2026) là đối chiếu Excel, không phải Word.</p>
+<h1 class="page-title">Cách tính điểm</h1>
+<p class="page-sub">Chỉ đổi khi Ban chấp hành thống nhất. Mặc định đã khớp sổ Excel nhà trường đang dùng.</p>
+
 {% if nam and year_formula %}
-<div class="card" style="padding:20px;margin-bottom:20px">
-  <h3>Mẫu số TB kiểm tra miệng — lựa chọn Ban chấp hành</h3>
-  <p>Word 2026–2027 viết <strong>chia sĩ số lớp</strong>. Sổ Ban in / Ban nhập tuần 10 chia <strong>số lượt điểm</strong> (tổng 5 dải, gồm 5–6 trọng số 0). Đây không phải bug code so với Excel. <strong>BCH chọn một trong hai</strong>; mặc định giữ Ban in (<code>count</code>), không tự đổi sang sĩ số.</p>
+<div class="card">
+  <h3>Điểm miệng chia cho gì?</h3>
+  <p class="hint">Sổ Excel năm cũ chia cho <b>số lần được điểm</b>. Văn bản Word năm nay viết chia cho <b>sĩ số lớp</b>. Cô chọn một cách; không tự đổi.</p>
   <form method="post" action="/cong-thuc">
     <input type="hidden" name="nam_id" value="{{ nam.id }}">
     <div class="field">
-      <label><input type="radio" name="ktm_divisor" value="count" {% if year_formula.ktm_divisor!='si_so' %}checked{% endif %}> Số lượt điểm (Ban in / Excel) — <code>diem_ktm / (n910+n78+n56+n34+n02)</code></label>
+      <label><input type="radio" name="ktm_divisor" value="count" {% if year_formula.ktm_divisor!='si_so' %}checked{% endif %}> Chia cho số lần có điểm miệng (như sổ Excel) — <b>nên giữ</b></label>
     </div>
     <div class="field" style="margin-top:8px">
-      <label><input type="radio" name="ktm_divisor" value="si_so" {% if year_formula.ktm_divisor=='si_so' %}checked{% endif %}> Sĩ số lớp (Word) — <code>diem_ktm / si_so</code></label>
+      <label><input type="radio" name="ktm_divisor" value="si_so" {% if year_formula.ktm_divisor=='si_so' %}checked{% endif %}> Chia cho sĩ số lớp (như văn bản Word)</label>
     </div>
-    <h3 style="margin-top:20px">Nhân đôi hội học</h3>
-    <p>Mặc định khớp Excel 20/11/2025: cộng 4 XT tuần, không nhân HĐTT. <code>week_xt</code> không đổi hạng.</p>
+
+    <h3 style="margin-top:20px">Hội học tháng 11 và tháng 3</h3>
+    <p class="hint">Sổ hội học năm cũ chỉ <b>cộng bốn hạng tuần</b>, không nhân đôi. Nếu cô muốn cộng thêm văn nghệ / thể thao thì chọn dòng thứ hai.</p>
     <div class="field" style="margin-top:8px">
-      <label><input type="radio" name="hoi_hoc_double" value="none" {% if year_formula.hoi_hoc_double!='hdtt_only' and year_formula.hoi_hoc_double!='week_xt' %}checked{% endif %}> <code>none</code> — Σ 4 xt_chung rồi RANK</label>
-    </div>
-    <div class="field" style="margin-top:8px">
-      <label><input type="radio" name="hoi_hoc_double" value="hdtt_only" {% if year_formula.hoi_hoc_double=='hdtt_only' %}checked{% endif %}> <code>hdtt_only</code> — Σ xt_chung + 2 × XT HĐTT đợt</label>
+      <label><input type="radio" name="hoi_hoc_double" value="none" {% if year_formula.hoi_hoc_double!='hdtt_only' and year_formula.hoi_hoc_double!='week_xt' %}checked{% endif %}> Cộng bốn hạng tuần, không nhân đôi — <b>như sổ Excel</b></label>
     </div>
     <div class="field" style="margin-top:8px">
-      <label><input type="radio" name="hoi_hoc_double" value="week_xt" {% if year_formula.hoi_hoc_double=='week_xt' %}checked{% endif %}> <code>week_xt</code> — Σ (2 × xt_chung), hạng giống none</label>
+      <label><input type="radio" name="hoi_hoc_double" value="hdtt_only" {% if year_formula.hoi_hoc_double=='hdtt_only' %}checked{% endif %}> Cộng bốn hạng tuần, rồi cộng thêm văn nghệ / thể thao (nhân đôi phần này)</label>
     </div>
-    <p class="notice">Cảnh báo: <code>week_xt</code> là RANK-invariant (RANK(2x)=RANK(x)). Không có <code>week_points</code>.</p>
-    <p style="margin:16px 0 0"><button type="submit" class="btn">Lưu công thức năm học</button></p>
+    <div class="field" style="margin-top:8px">
+      <label><input type="radio" name="hoi_hoc_double" value="week_xt" {% if year_formula.hoi_hoc_double=='week_xt' %}checked{% endif %}> Nhân đôi hạng từng tuần — thứ tự lớp thường không đổi, chỉ xem</label>
+    </div>
+    <p style="margin:16px 0 0"><button type="submit" class="btn">Lưu cách tính</button></p>
   </form>
-  <p class="muted" style="margin-top:12px">Học kỳ theo tháng: <code>Tổng XT HK = Tổng XT tháng × {{ year_formula.hk_month_weight }} + XT HĐTT</code> (mặc định ×2, xếp trên tổng đó chứ không nhân hạng tháng). Năm: XT HKI + 2 × XT HKII. Phù hiệu giả −30/HS.</p>
 </div>
 {% endif %}
-<div class="card" style="padding:20px;margin-bottom:20px">
-  <h3>Không trộn các mẫu khác năm</h3>
-  <p>Ban nhập / bản in ghi tuần 3 tháng 9 năm 2025. Các bảng khác chứa mẫu 2016–2017 và 2017–2018, số lớp và nhóm lớp khác nhau. Ứng dụng dùng danh sách lớp, nhóm và sĩ số của năm học đang chọn; không tự chép kết quả lịch sử vào năm hiện tại.</p>
-  <p>Dữ liệu mẫu có sẵn từ phiên bản trước đã được gắn năm 2026–2027. Đây không phải kết quả thực tế năm 2026–2027; hãy tạo năm học và nhập dữ liệu thực trước khi sử dụng báo cáo chính thức.</p>
-  <p><strong>XT</strong> là xếp thứ. Xếp riêng từng nhóm lớp; đồng hạng theo kiểu 1, 2, 2, 4. Bảng mới giữ ô thiếu dữ liệu trống và báo chưa đủ dữ liệu, không biến thành hạng nhất. Kỷ luật, khen thưởng và ghi chú do người phụ trách nhập, không tự suy diễn.</p>
+
+<div class="card howto">
+  <h3>Tuần</h3>
+  <ul>
+    <li>Điểm nề nếp chia sĩ số → hạng nề nếp trong nhóm (lớp chọn riêng, lớp thường riêng).</li>
+    <li>Điểm giờ chia số giờ; điểm miệng chia theo cách đã chọn ở trên. Cộng hai cái → hạng học tập.</li>
+    <li>Cộng hai hạng → hạng tuần. Hai lớp bằng điểm thì cùng hạng (1, 2, 2, 4).</li>
+  </ul>
+  <p><a href="/ket-qua-tuan">Mở xếp hạng tuần</a></p>
 </div>
-<div class="card" style="overflow-x:auto">
-<table class="data">
-<thead><tr><th>Sheet nguồn</th><th>Công thức / lưu ý</th><th>Thao tác</th></tr></thead>
-<tbody>
-<tr><td>Ban nhap</td><td>Báo cáo lớp là nguồn số giờ, năm dải điểm miệng và sự kiện. Chấm bổ sung chỉ thêm nề nếp, luôn có tiêu chí, mức điểm lúc ghi và lý do.</td><td><a href="/bao-cao-tuan">Báo cáo tuần</a></td></tr>
-<tr><td>Ban in</td><td>NN = tổng điểm nề nếp có dấu / sĩ số. TB giờ = (2×Tốt + Khá − Yếu − 2×Kém) / số giờ đã xếp loại. TB miệng mặc định = (2×9–10 + 7–8 − 3–4 − 2×0–2) / tổng cả 5 dải (Ban in); Word chia sĩ số — BCH chọn trên trang này. TB HT = TB giờ + TB miệng. Xếp NN và HT giảm dần, cộng hai hạng rồi xếp chung tăng dần trong từng nhóm (1224).</td><td><a href="/ket-qua-tuan">Kết quả tuần</a></td></tr>
-<tr><td>XT Thi</td><td>TB tỷ lệ các môn có nhập; điểm xếp loại = (3×Giỏi + 2×Khá + TB − 2×Yếu − 3×Kém) / sĩ số. Tổng XT = 2×XT tỷ lệ + XT loại, rồi xếp tăng dần. Môn thứ sáu không có tên trong file, hiển thị là môn bổ sung.</td><td><a href="/danh-gia?kind=thi">Bảng thi</a></td></tr>
-<tr><td>XT HD TT</td><td>Tổng XT thể thao + XT văn nghệ, rồi xếp tăng dần.</td><td><a href="/danh-gia?kind=hoat-dong">Hoạt động tập thể</a></td></tr>
-<tr><td>20-11-2025 / 26-3</td><td>Hội học: cột XT từng tuần thành viên + tong = Σ xt_chung (mặc định none) + XT đợt trong nhóm. 8 tuần không tạo sẵn; nếu BCH tạo, tong = Σ xt_chung mọi tuần thành viên (hợp 20/11 ∪ 26/3 khi <code>nguon_tuan=union</code>).</td><td><a href="/hoi-hoc">Hội học</a></td></tr>
-<tr><td>Thi dua thang</td><td>Tổng XT các tuần thuộc tháng, rồi xếp tăng dần. Có nguồn nhập tay rõ ràng cho tháng lịch sử chưa có dữ liệu tuần.</td><td><a href="/tong-hop?mode=thang">Theo tháng</a></td></tr>
-<tr><td>Thi dua nua dau</td><td>HKI 2026–2027 (theo tháng): tổng XT các tháng × 2 + XT HĐTT, rồi RANK tổng đó. Official cần đủ mọi tháng; xem trước nhân trên tháng đã có. Không dùng hạng tháng (rank_td) để cộng.</td><td><a href="/tong-hop?mode=hk&key=1&model=monthly">Mẫu tháng, HKI</a></td></tr>
-<tr><td>Thi dua nua sau</td><td>HKII cùng công thức ×2. Checkbox thi HKII (mẫu 2016) mặc định tắt, ẩn trong cấu hình cũ.</td><td><a href="/tong-hop?mode=hk&key=2&model=monthly">Mẫu tháng, HKII</a></td></tr>
-<tr><td>Hoc ky I<br>Hoc ky II</td><td>Mẫu hai nửa 2016–2017: tổng = XT nửa đầu + 2×XT nửa sau → XT thi đua HK; tổng HK = 2×XT thi đua HK + XT HĐTT → XT học kỳ. Phân tuần vào hai nửa bằng cấu hình, không tự đoán từ số tuần.</td><td><a href="/tong-hop?mode=hk&model=halves">Mẫu hai nửa</a></td></tr>
-<tr><td>Ca nam</td><td>Tổng = XT HKI + 2×XT HKII, rồi xếp tăng dần. Công thức D8 = B8+C8*2. Kết quả phụ thuộc mẫu học kỳ được chọn.</td><td><a href="/tong-hop?mode=nam">Cả năm</a></td></tr>
-<tr><td>Điểm NN(HKI)<br>Điểm NN (HKII)</td><td>Tổng điểm phạt dương / điểm tỷ lệ → điểm trừ; điểm nề nếp = 20 − điểm trừ. Tỷ lệ nhập riêng từng lớp. Ví dụ 232 / 25 → 10,72 điểm.</td><td><a href="/ne-nep-gvcn?mode=classic">Điểm nề nếp</a></td></tr>
-<tr><td>Dữ liệu</td><td>Điểm phạt theo lớp, theo tuần. Ứng dụng lấy dữ liệu tuần theo mã lớp, cho phép nhập thay thế có ghi nguồn mà không sửa điểm tuần ban đầu.</td><td><a href="/ne-nep-gvcn?mode=data">Dữ liệu nề nếp</a></td></tr>
-<tr><td>Điểm NN mới (2)</td><td>U = −tổng điểm phạt; Y = TRUNC(U/tỷ lệ, 0); AA = Y×0,1; điểm GVCN = 20+AA. Không cộng cột phụ AB vào điểm cuối. Ví dụ −116 / 3 → TRUNC = −38 → 16,2 điểm. Tỷ lệ khác mẫu nề nếp cũ.</td><td><a href="/ne-nep-gvcn?mode=teacher">Đánh giá GVCN</a></td></tr>
-</tbody>
-</table>
+<div class="card howto">
+  <h3>Tháng, học kỳ, cả năm</h3>
+  <ul>
+    <li>Tháng: cộng hạng các tuần trong tháng.</li>
+    <li>Học kỳ: tổng hạng các tháng nhân 2, cộng hoạt động tập thể nếu có.</li>
+    <li>Cả năm: hạng học kỳ I + hạng học kỳ II nhân 2.</li>
+    <li><b>Chính thức</b> chỉ lấy tuần đã công bố. <b>Xem trước</b> là tính tạm.</li>
+  </ul>
+  <p><a href="/tong-hop">Mở tháng / học kỳ / năm</a></p>
 </div>
-<div class="card" style="padding:20px;margin-top:20px">
-<h3>Những khác biệt cần biết trước khi chốt báo cáo</h3>
-<ul>
-<li>XT Thi chứa lỗi Excel #N/A và #DIV/0! khi chưa có tỷ lệ; không được đọc mã lỗi 42 / 7 thành điểm số. Sĩ số trong file liên kết theo vị trí dòng có thể lệch lớp; ứng dụng dùng mã lớp.</li>
-<li>Điểm NN mới (2) liên kết đến nguồn Excel bên ngoài. Ứng dụng dùng dữ liệu tuần nội bộ / số nhập thay thế; không giả lập liên kết ngoài đã mất.</li>
-<li>Ban in cộng điểm kiểm tra 3–4 với dấu dương, trái quy chế 2026–2027. Phần nhập tuần giữ mức −1 theo quy chế mới; giờ kém −2 cũng theo quy chế mới. Vì vậy không sao chép nguyên xi lỗi của mẫu cũ.</li>
-<li>Hai mô hình học kỳ là hai lựa chọn độc lập. Mô hình tháng là mặc định 2026–2027 (×2 tổng XT tháng). Mô hình hai nửa là mẫu 2016 — kiểm tra trước khi xuất.</li>
-<li>Mẫu số TB KTM là lựa chọn BCH (Ban in = số lượt; Word = sĩ số). Không im lặng đổi mặc định.</li>
-</ul>
+<div class="card howto">
+  <h3>Điểm chủ nhiệm (thang 20)</h3>
+  <ul>
+    <li>Trừ theo nề nếp lớp, tùy nhóm A / B / C đã gán.</li>
+    <li>Lớp nhất tuần: cô được +0,5; nhì +0,3; ba +0,2.</li>
+    <li>Lỗi nặng của học sinh trừ cô 10 hoặc 15, trừ khi cô phát hiện trước.</li>
+  </ul>
+  <p><a href="/ne-nep-gvcn">Mở điểm chủ nhiệm</a> · <a href="/lop">Gán nhóm A/B/C</a></p>
 </div>
 {% endblock %}

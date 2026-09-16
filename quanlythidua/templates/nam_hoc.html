@@ -1,14 +1,17 @@
 {% extends "base.html" %}
 {% block title %}Năm học{% endblock %}
 {% block body %}
-<h1 class="page-title">Cấu hình năm học {{ nam.ten }}</h1>
-<p class="page-sub">Tuần tính thứ Sáu đến thứ Năm, tính vào tháng của thứ Sáu. Chưa xác nhận ngày HKII thì chưa có kết quả học kỳ chính thức.</p>
+<h1 class="page-title">Năm học {{ nam.ten }}</h1>
+<p class="page-sub">Đặt ngày khai giảng / bế giảng. Tuần thi đua luôn từ Thứ Sáu đến hết Thứ Năm.</p>
+<div class="guide">
+  <p>Ngày bắt đầu học kỳ II chỉ điền khi nhà trường đã chốt. Chưa điền thì chưa có bảng học kỳ chính thức.</p>
+</div>
 <form method="post" action="/nam-hoc" class="card" data-dirty-guard>
   <input type="hidden" name="nam_id" value="{{ nam.id }}">
   <div class="form-grid">
     <div class="field"><label for="calendar-start">Bắt đầu năm học</label><input id="calendar-start" name="ngay_bd" type="date" value="{{ calendar.ngay_bd }}" required></div>
     <div class="field"><label for="calendar-end">Kết thúc năm học</label><input id="calendar-end" name="ngay_kt" type="date" value="{{ calendar.ngay_kt }}" required></div>
-    <div class="field"><label for="calendar-hk2">Bắt đầu HKII (chỉ nhập khi đã xác nhận)</label><input id="calendar-hk2" name="hk2_bd" type="date" value="{{ calendar.hk2_bd }}"></div>
+    <div class="field"><label for="calendar-hk2">Ngày bắt đầu học kỳ II</label><input id="calendar-hk2" name="hk2_bd" type="date" value="{{ calendar.hk2_bd }}"><p class="hint">Để trống nếu chưa chốt.</p></div>
     <div class="field"><label for="org-place">Địa danh ký</label><input id="org-place" name="dia_danh" value="{{ calendar.org.dia_danh }}"></div>
     <div class="field"><label for="org-xa">Đoàn xã</label><input id="org-xa" name="xa" value="{{ calendar.org.xa }}"></div>
     <div class="field"><label for="org-truong">Đoàn trường</label><input id="org-truong" name="truong" value="{{ calendar.org.truong }}"></div>
@@ -18,28 +21,27 @@
 </form>
 {% if year_formula %}
 <div class="card">
-  <h2>Công thức hội học</h2>
-  <p class="muted">Mặc định <code>none</code> = Σ đúng 4 XT tuần (Excel 20/11/2025). Không gán sẵn tuần 7–10.</p>
+  <h2>Cách tính hội học</h2>
+  <p class="hint">Chọn 4 tuần của đợt ở khung bên dưới. Cách cộng điểm nên giữ như sổ Excel: cộng bốn hạng tuần.</p>
   <form method="post" action="/nam-hoc/cong-thuc" data-dirty-guard>
     <input type="hidden" name="nam_id" value="{{ nam.id }}">
     <div class="field">
-      <label><input type="radio" name="hoi_hoc_double" value="none" {% if year_formula.hoi_hoc_double!='hdtt_only' and year_formula.hoi_hoc_double!='week_xt' %}checked{% endif %}> <code>none</code> — tong = Σ xt_chung 4 tuần, rồi RANK trong nhóm</label>
+      <label><input type="radio" name="hoi_hoc_double" value="none" {% if year_formula.hoi_hoc_double!='hdtt_only' and year_formula.hoi_hoc_double!='week_xt' %}checked{% endif %}> Cộng bốn hạng tuần, không nhân đôi</label>
     </div>
     <div class="field" style="margin-top:8px">
-      <label><input type="radio" name="hoi_hoc_double" value="hdtt_only" {% if year_formula.hoi_hoc_double=='hdtt_only' %}checked{% endif %}> <code>hdtt_only</code> — tong = Σ xt_chung + 2 × XT HĐTT đợt (nhập HĐTT trên bảng hội học)</label>
+      <label><input type="radio" name="hoi_hoc_double" value="hdtt_only" {% if year_formula.hoi_hoc_double=='hdtt_only' %}checked{% endif %}> Cộng bốn hạng tuần, thêm văn nghệ / thể thao (nhân đôi phần này)</label>
     </div>
     <div class="field" style="margin-top:8px">
-      <label><input type="radio" name="hoi_hoc_double" value="week_xt" {% if year_formula.hoi_hoc_double=='week_xt' %}checked{% endif %}> <code>week_xt</code> — tong = Σ (2 × xt_chung)</label>
+      <label><input type="radio" name="hoi_hoc_double" value="week_xt" {% if year_formula.hoi_hoc_double=='week_xt' %}checked{% endif %}> Nhân đôi hạng tuần — thứ tự lớp thường không đổi</label>
     </div>
-    <p class="notice">Cảnh báo: <code>week_xt</code> nhân 2 từng XT tuần nhưng RANK(2x)=RANK(x) nên hạng giống <code>none</code>. Chỉ để xem, không đổi xếp hạng. Không có <code>week_points</code>.</p>
-    <p style="margin:16px 0 0"><button type="submit" class="btn">Lưu công thức hội học</button></p>
+    <p style="margin:16px 0 0"><button type="submit" class="btn">Lưu cách tính hội học</button></p>
   </form>
 </div>
 {% endif %}
 {% for moc in hoi_hoc or [] %}
 <div class="card">
   <h2>{{ moc.ten }}</h2>
-  <p class="muted">Gợi ý tuần Thứ Sáu–Thứ Năm giao tháng {% if moc.ma=='20-11' %}11{% else %}3{% endif %} (ngày bắt đầu hoặc kết thúc cắt tháng đó). Tick đúng 4 tuần. Không mặc định tuần 7–10.</p>
+  <p class="hint">Đánh dấu đúng <b>4 tuần</b> nằm trong tháng {% if moc.ma=='20-11' %}11{% else %}3{% endif %}. Phần mềm gợi ý các tuần cắt tháng đó; cô vẫn được chọn tuần khác.</p>
   {% if moc.weeks and moc.weeks|length %}
   <form method="post" action="/nam-hoc/moc" data-dirty-guard>
     <input type="hidden" name="nam_id" value="{{ nam.id }}">
@@ -113,8 +115,8 @@
 </div>
 {% else %}
 <div class="card">
-  <h2>Mốc 8 tuần (tùy chọn)</h2>
-  <p class="muted">Word 2026–2027 không nêu thi đua 8 tuần. Không tạo sẵn. Mục nav «8 tuần» chỉ hiện sau khi tạo.</p>
+  <h2>Thi đua 8 tuần (không bắt buộc)</h2>
+  <p class="hint">Năm nay văn bản không ghi mốc 8 tuần. Chỉ tạo nếu cô cần bảng riêng. Sau khi tạo, menu «8 tuần» mới hiện.</p>
   <form method="post" action="/nam-hoc/tam-ket">
     <input type="hidden" name="nam_id" value="{{ nam.id }}">
     <div class="field">

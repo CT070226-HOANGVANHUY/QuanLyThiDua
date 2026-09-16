@@ -3,12 +3,12 @@ import { schoolCalendar, scoreWeek } from "./plan.ts";
 import { activityResults, examResults } from "./assessments.ts";
 import { competitionRanks } from "./scoring.ts";
 export const MODELS: Record<string, string> = {
-  monthly: "Theo tháng",
-  halves: "Theo nửa kỳ",
+  monthly: "Theo tháng (năm nay)",
+  halves: "Theo nửa kỳ (mẫu cũ)",
 };
 export const MODES: Record<string, string> = {
   thang: "Tháng",
-  nua: "Nửa kỳ",
+  nua: "Nửa học kỳ",
   hk: "Học kỳ",
   nam: "Cả năm",
 };

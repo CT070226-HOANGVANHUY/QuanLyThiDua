@@ -38,6 +38,7 @@ const ROUTES: Record<string, string> = {
   nap_roster: "/nam-hoc/nap-roster",
   sao_luu: "/sao-luu",
   formulas: "/cong-thuc",
+  huong_dan: "/huong-dan",
   class_report_word: "/bao-cao/lop/word",
   class_report_print: "/bao-cao/lop/in",
   "periods.export": "/tong-hop/xuat",

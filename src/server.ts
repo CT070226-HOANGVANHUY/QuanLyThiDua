@@ -256,6 +256,47 @@ app.get("/", (req, res) => {
   const chart_max = Math.max(1, ...chart.map((c) => c.val));
   const pho_bien = tuan?.id ? popularViolations(con, Number(tuan.id)) : [];
   const so_vp = pho_bien.reduce((s, r) => s + Number(r.sl || 0), 0);
+  const chua_bao = Math.max(0, lops.length - da_bao);
+  const status = tuan ? String(tuan.trang_thai || "nhap") : "";
+  let next_step = {
+    title: "Bắt đầu năm học",
+    text: "Chọn năm đang làm ở góc trên, hoặc tạo năm mới. Rồi mở Danh sách lớp để kiểm tra sĩ số và GVCN.",
+    href: "/lop",
+    label: "Mở danh sách lớp",
+  };
+  if (!n) {
+    next_step = { title: "Chưa có năm học", text: "Bấm «Năm mới» góc trên phải để tạo năm đang làm việc.", href: "/", label: "Ở lại trang này" };
+  } else if (!lops.length) {
+    next_step = { title: "Chưa có lớp", text: "Cần danh sách lớp trước khi nhập tuần.", href: "/lop", label: "Thêm lớp" };
+  } else if (tuan && chua_bao > 0) {
+    next_step = {
+      title: "Nhập tuần đang chọn",
+      text: `Còn ${chua_bao} lớp chưa hoàn tất. Gõ từ giấy bí thư, sổ thanh niên kiểm tra hoặc tin Zalo — không cần bí thư nộp online.`,
+      href: "/bao-cao-tuan",
+      label: "Nhập tuần",
+    };
+  } else if (tuan && status === "nhap" && da_bao === lops.length && lops.length) {
+    next_step = {
+      title: "Đã nhập đủ lớp — chốt tuần",
+      text: "Xem xếp hạng, rồi bấm Chốt tuần. Chốt xong mới công bố để lấy số chính thức.",
+      href: "/ket-qua-tuan",
+      label: "Xếp hạng và chốt",
+    };
+  } else if (tuan && status === "chot") {
+    next_step = {
+      title: "Công bố tuần",
+      text: "Sau khi công bố, số liệu tuần này được khóa. Dùng số đó để tính tháng, hội học và điểm chủ nhiệm.",
+      href: "/ket-qua-tuan",
+      label: "Công bố tuần",
+    };
+  } else if (tuan && status === "cong_bo") {
+    next_step = {
+      title: "Tuần đã công bố",
+      text: "Tải bảng vi phạm hoặc bảng treo tường. Sang tuần sau thì chọn tuần mới ở bộ lọc.",
+      href: "/bao-cao",
+      label: "In và tải file",
+    };
+  }
   view(env, req, res, "home.html", {
     ...ctx(),
     ...wf,
@@ -263,14 +304,20 @@ app.get("/", (req, res) => {
     active: "home",
     so_lop: lops.length,
     da_bao,
-    chua_bao: Math.max(0, lops.length - da_bao),
+    chua_bao,
     tuan_hien_tai: tuan ? tuanLabel(tuan) : "—",
-    status_label: tuan ? TT_LABEL[String(tuan.trang_thai || "nhap")] : "",
+    status_label: tuan ? TT_LABEL[status || "nhap"] : "",
     chart,
+    chart_max,
     tops: results.filter((row) => row.xt_chung != null).sort((a, b) => a.nhom - b.nhom || Number(a.xt_chung) - Number(b.xt_chung) || a.ten.localeCompare(b.ten)).slice(0, 8),
     so_vp,
     pho_bien,
+    next_step,
   });
+});
+
+app.get("/huong-dan", (_req, res) => {
+  view(env, _req, res, "huong_dan.html", { ...ctx(), active: "huong_dan" });
 });
 
 app.get("/lop", (req, res) => {
@@ -505,11 +552,29 @@ app.post("/bao-cao-tuan", (req, res) => {
     const saved = saveReport(con, n, {
       tuan_id: f.tuan_id ? Number(f.tuan_id) : undefined, week_start: f.week_start,
     }, Number(f.lop_id), Number(f.revision || 0), parsed, action);
-    flash(res, action === "submit" ? "Đã hoàn tất lớp" : "Đã lưu nháp");
     const week = saved.week;
+    let nextLopId = f.lop_id;
+    let flashMsg = action === "submit" ? "Đã hoàn tất lớp" : "Đã lưu nháp";
+    if (action === "submit") {
+      const frozen = frozenWeekClasses(con, Number(week.id));
+      const lops = frozen.length ? frozen : listLop(con, n);
+      const done = new Set<string>();
+      for (const row of scoreWeek(con, Number(week.id))) {
+        if (String(row.report_status) === "da_gui") done.add(String(row.lop_id));
+      }
+      const next = lops.find((lop) => String(lop.id) !== f.lop_id && !done.has(String(lop.id)))
+        ?? lops.find((lop) => String(lop.id) !== f.lop_id);
+      if (next && !done.has(String(next.id))) {
+        nextLopId = String(next.id);
+        flashMsg = `Đã xong lớp vừa nhập. Tiếp theo: ${next.ten}`;
+      } else if (next) {
+        flashMsg = "Đã hoàn tất lớp. Mọi lớp tuần này đã xong — mở Xếp hạng và chốt.";
+      }
+    }
+    flash(res, flashMsg);
     return res.redirect(`/bao-cao-tuan?${new URLSearchParams({
       nam_id: String(n), week_start: String(week.ngay_bd || ""), tuan_id: String(week.id),
-      lop_id: f.lop_id, nam: String(week.nam), thang: String(week.thang),
+      lop_id: nextLopId, nam: String(week.nam), thang: String(week.thang),
     })}`);
   } catch (error) {
     if (error instanceof WorkflowError && (error.status === 400 || error.status === 409)) {

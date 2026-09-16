@@ -27,7 +27,7 @@ export const MODE_LABELS: Record<string, string> = {
 };
 
 export const GVCN_HINT =
-  "Gợi ý Word (có thể lệch roster 2026–2027, gồm 10D*): A ngưỡng 5 — 10A1, 11A1, 11A3, 12A1; B ngưỡng 7 — 10A2, 10A4, 10A6, 10A8, 11A2, 11A4, 11A8, 12A2, 12A4, 12A8; còn lại C ngưỡng 10. Không gán tự động.";
+  "Gán nhóm A/B/C ở Danh sách lớp. A trừ nhanh hơn (cứ đủ 5 điểm nề nếp thì GVCN mất 0,1). B cứ đủ 7; C cứ đủ 10. File chủ nhiệm cũ ghi A = 10A1, 11A1, 11A3, 12A1 — năm nay có lớp 10D nên cô tự gán, phần mềm không đoán hộ.";
 
 const SCHEMA = `
 CREATE TABLE IF NOT EXISTS conduct_ratio (

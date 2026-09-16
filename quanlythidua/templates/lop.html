@@ -1,9 +1,13 @@
 {% extends "base.html" %}
 {% block title %}Lớp{% endblock %}
 {% block body %}
-<h1 class="page-title">Lớp</h1>
-<p class="page-sub">Sĩ số, loại hình, giáo viên chủ nhiệm, nhóm tỷ lệ công tác chủ nhiệm A/B/C. Thứ tự theo danh sách thi đua.</p>
-{% if gvcn_hint %}<p class="muted">{{ gvcn_hint }}</p>{% endif %}
+<h1 class="page-title">Danh sách lớp</h1>
+<p class="page-sub">Sĩ số dùng để chia điểm nề nếp. Loại hình dùng để xếp hạng. Nhóm A/B/C dùng để tính điểm cô chủ nhiệm.</p>
+<div class="guide">
+  <p><b>Lớp chọn / lớp thường</b> — hai bảng thi đua riêng, không trộn.</p>
+  <p><b>Nhóm A / B / C</b> — A trừ điểm cô nhanh hơn (ngưỡng 5), B ngưỡng 7, C ngưỡng 10. Chưa gán thì cuối kỳ chưa có điểm chủ nhiệm.</p>
+  {% if gvcn_hint %}<p>{{ gvcn_hint }}</p>{% endif %}
+</div>
 {% if loai_hinh_mismatch and loai_hinh_mismatch.length %}
 <div class="banner danger" style="margin-bottom:12px"><span class="dot">!</span> Nhóm và loại hình lệch: {% for r in loai_hinh_mismatch %}{{ r.ten }}{% if not loop.last %}, {% endif %}{% endfor %}. Hãy chọn lại Lớp chọn / Lớp thường.</div>
 {% endif %}
@@ -33,7 +37,7 @@
     <td>{{ r.nu }}</td>
     <td>{{ r.kt }}</td>
     <td>{{ r.gvcn }}</td>
-    <td>{% if r.gvcn_group_id %}{% for g in gvcn_groups %}{% if g.id==r.gvcn_group_id %}{{ g.ma }}{% endif %}{% endfor %}{% else %}—{% endif %}</td>
+    <td>{% if r.gvcn_group_id %}{% for g in gvcn_groups %}{% if g.id==r.gvcn_group_id %}{{ g.ma }}{% endif %}{% endfor %}{% else %}Chưa gán{% endif %}</td>
     <td>
       {% if r.ap_dung==0 %}
       <form method="post" action="{{ url_for('ap_dung_lop', lop_id=r.id) }}" style="display:inline">
@@ -64,7 +68,7 @@
     <div class="form-grid">
       <div class="field"><label>Tên lớp</label><input name="ten" id="lopTen" required></div>
       <div class="field"><label>Khối</label><input name="khoi" id="lopKhoi" type="number" value="10"></div>
-      <div class="field"><label>Loại hình</label>
+      <div class="field"><label>Thi đua với</label>
         <select name="loai_hinh" id="lopLoai">
           <option value="chon">Lớp chọn</option>
           <option value="thuong">Lớp thường</option>
@@ -74,19 +78,19 @@
       <div class="field"><label>Nữ</label><input name="nu" id="lopNu" type="number" value="0" min="0"></div>
       <div class="field"><label>KT</label><input name="kt" id="lopKt" type="number" value="0" min="0"></div>
       <div class="field"><label>GVCN</label><input name="gvcn" id="lopGvcn"></div>
-      <div class="field"><label>Nhóm công tác chủ nhiệm</label>
+      <div class="field"><label>Nhóm điểm chủ nhiệm</label>
         <select name="gvcn_group_id" id="lopGvcnGroup">
-          <option value="">— Chưa gán —</option>
+          <option value="">Chưa gán</option>
           {% for g in gvcn_groups %}
-          <option value="{{ g.id }}">{{ g.ma }} — {{ g.ten }} ({{ "%.12g"|format(g.nguong) }})</option>
+          <option value="{{ g.id }}">{{ g.ma }} — cứ đủ {{ "%.12g"|format(g.nguong) }} điểm nề nếp thì trừ cô 0,1</option>
           {% endfor %}
         </select>
       </div>
       <div class="field"><label>Thứ tự</label><input name="thu_tu" id="lopTt" type="number" value="0"></div>
-      <div class="field"><label>Áp dụng</label>
+      <div class="field"><label>Còn thi đua năm này?</label>
         <select name="ap_dung" id="lopAp">
-          <option value="1">Có</option>
-          <option value="0">Không</option>
+          <option value="1">Có — tính điểm</option>
+          <option value="0">Không — lớp cũ, bỏ qua</option>
         </select>
       </div>
     </div>

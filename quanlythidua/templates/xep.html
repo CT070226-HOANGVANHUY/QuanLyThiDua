@@ -2,16 +2,20 @@
 {% block title %}Xếp hạng tuần{% endblock %}
 {% block body %}
 <div class="page-head">
-  <h1 class="page-title">Xếp hạng tuần</h1>
+  <h1 class="page-title">Xếp hạng và chốt tuần</h1>
   <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
     {% include "week_filter.html" %}
     {% if tuan and tuan.id %}
-    <a class="btn-gold" href="{{ url_for('xuat_tuan', nam_id=nam.id, nam=year, thang=month, week_start=selection.week_start, tuan_id=tuan.id, lop_id=lop_id) }}">{% if tuan.legacy or tuan.conflict or tuan.outside %}Xuất Excel nháp{% else %}Xuất Excel{% endif %}</a>
-    <a class="btn ghost" href="{{ url_for('xuat_loi_hs', tuan_id=tuan.id) }}">Xuất lỗi HS</a>
-    <a class="btn ghost" href="{{ url_for('xuat_ban_in', tuan_id=tuan.id) }}">Ban in</a>
-    <a class="btn ghost" href="{{ url_for('xuat_ban_in', tuan_id=tuan.id, format='print') }}">In Ban in</a>
+    <a class="btn-gold" href="{{ url_for('xuat_tuan', nam_id=nam.id, nam=year, thang=month, week_start=selection.week_start, tuan_id=tuan.id, lop_id=lop_id) }}">{% if tuan.legacy or tuan.conflict or tuan.outside %}Tải Excel nháp{% else %}Tải Excel{% endif %}</a>
+    <a class="btn ghost" href="{{ url_for('xuat_loi_hs', tuan_id=tuan.id) }}">Bảng vi phạm</a>
+    <a class="btn ghost" href="{{ url_for('xuat_ban_in', tuan_id=tuan.id) }}">Bảng treo tường</a>
+    <a class="btn ghost" href="{{ url_for('xuat_ban_in', tuan_id=tuan.id, format='print') }}">In bảng treo tường</a>
     {% endif %}
   </div>
+</div>
+<div class="guide">
+  <p>Hạng tính <b>riêng lớp chọn</b> và <b>riêng lớp thường</b>, không trộn cả trường. 1 = nhất.</p>
+  <p><b>Chốt tuần</b> khi đã nhập đủ lớp — còn sửa được nếu mở lại. <b>Công bố</b> khi số đã đúng: khóa tuần này để tính tháng, hội học, điểm chủ nhiệm.</p>
 </div>
 {% if loai_hinh_mismatch and loai_hinh_mismatch.length %}
 <div class="banner danger" style="margin-bottom:12px"><span class="dot">!</span> Nhóm và loại hình lệch: {% for r in loai_hinh_mismatch %}{{ r.ten }}{% if not loop.last %}, {% endif %}{% endfor %}. Sửa tại Danh sách lớp.</div>
@@ -26,30 +30,30 @@
   <input type="hidden" name="nam" value="{{ year }}">
   <input type="hidden" name="thang" value="{{ month }}">
   {% if lop_id %}<input type="hidden" name="lop_id" value="{{ lop_id }}">{% endif %}
-  <label for="transition-reason">Lý do (bắt buộc khi mở lại/hủy công bố)</label><input id="transition-reason" name="reason">
+  <label for="transition-reason">Lý do (khi mở lại hoặc hủy công bố)</label><input id="transition-reason" name="reason" placeholder="Ví dụ: sửa sĩ số lớp 10A3">
   {% if tuan.trang_thai=='nhap' %}
   <button class="btn" name="trang_thai" value="chot">Chốt tuần</button>
   {% elif tuan.trang_thai=='chot' %}
-  <button class="btn" name="trang_thai" value="cong_bo">Công bố</button>
-  <button class="btn ghost" name="trang_thai" value="nhap">Mở lại</button>
+  <button class="btn" name="trang_thai" value="cong_bo">Công bố (khóa số liệu)</button>
+  <button class="btn ghost" name="trang_thai" value="nhap">Mở lại để sửa</button>
   {% else %}
-  <button class="btn ghost" name="trang_thai" value="chot">Hủy công bố</button>
+  <button class="btn ghost" name="trang_thai" value="chot">Hủy công bố để sửa</button>
   {% endif %}
 </form>
 {% elif not tuan.id %}
-<p class="page-sub">Tuần chưa có dữ liệu đã lưu. Lưu báo cáo hoặc chấm tuần trước khi chốt hay xuất báo cáo.</p>
+<p class="page-sub">Tuần này chưa có lớp nào được lưu. Hãy nhập tuần trước, rồi quay lại đây để chốt.</p>
 {% else %}
 <p class="page-sub">Dữ liệu cũ cần đối chiếu — chỉ xem hoặc xuất nháp; chưa thể chốt tuần.</p>
 {% endif %}
 <div class="card"><div class="table-wrap"><table class="data">
-  <thead><tr><th>Nhóm</th><th>XT chung</th><th>Lớp</th><th>TB NN</th><th>XT NN</th><th>TB giờ</th><th>TB miệng</th><th>TB HT</th><th>XT HT</th><th>Tổng XT</th><th>Trạng thái</th><th>± hạng</th></tr></thead>
+  <thead><tr><th>Loại</th><th>Hạng tuần</th><th>Lớp</th><th>TB nề nếp</th><th>Hạng nề nếp</th><th>TB giờ</th><th>TB miệng</th><th>TB học tập</th><th>Hạng học tập</th><th>Tổng hạng</th><th>Trạng thái</th><th>Lên/xuống</th></tr></thead>
   <tbody>{% for it in results %}<tr>
-    <td>{{ it.nhom }}</td><td>{% if it.xt_chung==1 %}<span class="rank g">1</span>{% else %}{{ it.xt_chung if it.xt_chung!=null else '—' }}{% endif %}</td>
+    <td>{{ 'Lớp chọn' if it.nhom==1 else 'Lớp thường' }}</td><td>{% if it.xt_chung==1 %}<span class="rank g">1</span>{% else %}{{ it.xt_chung if it.xt_chung!=null else '—' }}{% endif %}</td>
     <td><a href="{{ url_for('cham_tuan',nam_id=nam.id,nam=year,thang=month,week_start=selection.week_start,tuan_id=selection.tuan_id,lop_id=it.lop_id) }}"><b>{{ it.ten }}</b></a></td>
     <td>{{ "%.3f"|format(it.tb_nn) if it.bao_cao else '—' }}</td><td>{{ it.xt_nn if it.xt_nn!=null else '—' }}</td>
     <td>{{ "%.3f"|format(it.tb_gio) if it.bao_cao else '—' }}</td><td>{{ "%.3f"|format(it.tb_ktm) if it.bao_cao else '—' }}</td><td>{{ "%.3f"|format(it.tb_ht) if it.bao_cao else '—' }}</td>
     <td>{{ it.xt_ht if it.xt_ht!=null else '—' }}</td><td>{{ it.tong_xt if it.tong_xt!=null else '—' }}</td>
-    <td>{% if it.rank_status=='missing' %}Thiếu: {{ it.missing|join('; ') }}{% elif it.rank_status=='official' %}Chính thức{% else %}Tạm tính{% endif %}</td>
+    <td>{% if it.rank_status=='missing' %}Thiếu: {{ it.missing|join('; ') }}{% elif it.rank_status=='official' %}Đã công bố{% else %}Chưa công bố{% endif %}</td>
     <td>{% if it.delta is none %}—{% elif it.delta>0 %}+{{ it.delta }}{% else %}{{ it.delta }}{% endif %}</td>
   </tr>{% endfor %}</tbody>
 </table></div></div>

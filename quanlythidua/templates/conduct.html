@@ -2,8 +2,11 @@
 {% block title %}Công tác chủ nhiệm{% endblock %}
 {% macro number(value) -%}{% if value is none %}—{% elif value is number %}{{ "%.12g"|format(value) }}{% else %}{{ value }}{% endif %}{%- endmacro %}
 {% block body %}
-<h1 class="page-title">Công tác chủ nhiệm</h1>
-<p class="page-sub">{{ nam.ten }} · HK{{ hk }} · 20 điểm · cửa sổ 5.1: {% if gvcn_window=='weekly' %}từng tuần{% else %}cả học kỳ{% endif %}</p>
+<h1 class="page-title">Điểm chủ nhiệm</h1>
+<p class="page-sub">{{ nam.ten }} · học kỳ {{ hk }} · thang 20 điểm. Trừ theo nề nếp lớp, cộng thưởng khi lớp vào top 3 tuần.</p>
+<div class="guide">
+  <p>Gán nhóm A/B/C ở Danh sách lớp trước. <b>Chỉ tuần đã công bố</b> dùng họp; <b>xem thử</b> tính cả tuần chưa công bố.</p>
+</div>
 
 <form class="toolbar" method="get" action="{{ url_for('conduct.index') }}">
   <div class="field"><label for="conduct-hk">Học kỳ</label>
@@ -12,10 +15,10 @@
       <option value="2" {% if hk==2 %}selected{% endif %}>Học kỳ II</option>
     </select>
   </div>
-  <div class="field"><label for="conduct-view">Dữ liệu</label>
+  <div class="field"><label for="conduct-view">Lấy số liệu</label>
     <select id="conduct-view" name="view" onchange="this.form.submit()">
-      <option value="official" {% if resultView=='official' %}selected{% endif %}>Chính thức</option>
-      <option value="preview" {% if resultView=='preview' %}selected{% endif %}>Xem trước</option>
+      <option value="official" {% if resultView=='official' %}selected{% endif %}>Chỉ tuần đã công bố</option>
+      <option value="preview" {% if resultView=='preview' %}selected{% endif %}>Xem thử (kể cả chưa công bố)</option>
     </select>
   </div>
   <a class="btn-gold" href="{{ url_for('conduct.export', hk=hk, view=resultView) }}">Xuất Excel</a>
@@ -23,10 +26,10 @@
 </form>
 
 {% if unassigned %}
-<div class="banner danger" style="margin-bottom:12px"><span class="dot">!</span> {{ unassigned }} lớp chưa gán nhóm A/B/C — điểm chính thức để trống.</div>
+<div class="banner danger" style="margin-bottom:12px"><span class="dot">!</span> {{ unassigned }} lớp chưa gán nhóm A/B/C nên chưa ra điểm chủ nhiệm. Sửa ở Danh sách lớp.</div>
 {% endif %}
 {% if resultView=='official' and not official_ready %}
-<div class="banner danger" style="margin-bottom:12px"><span class="dot">!</span> Còn tuần <code>included=1</code> chưa công bố. Điểm chính thức trống; chọn Xem trước để tính trên tuần đã công bố. Tuần excluded (ví dụ tuần mẫu) không làm trống điểm.</div>
+<div class="banner danger" style="margin-bottom:12px"><span class="dot">!</span> Còn tuần trong học kỳ chưa công bố nên điểm họp chính thức để trống. Chọn «Xem thử» nếu chỉ muốn nhìn tạm.</div>
 {% endif %}
 <p class="muted" style="margin-bottom:12px">{{ gvcn_hint }}</p>
 
@@ -34,10 +37,10 @@
   <input type="hidden" name="nam_id" value="{{ nam.id }}">
   <input type="hidden" name="hk" value="{{ hk }}">
   <input type="hidden" name="action" value="window">
-  <div class="field"><label for="gvcn-window">Cửa sổ trừ 5.1</label>
+  <div class="field"><label for="gvcn-window">Cách trừ điểm nề nếp</label>
     <select id="gvcn-window" name="gvcn_5_1_window">
-      <option value="semester" {% if gvcn_window!='weekly' %}selected{% endif %}>Cả học kỳ (mặc định)</option>
-      <option value="weekly" {% if gvcn_window=='weekly' %}selected{% endif %}>Từng tuần rồi cộng</option>
+      <option value="semester" {% if gvcn_window!='weekly' %}selected{% endif %}>Cộng cả học kỳ rồi mới trừ (nên giữ)</option>
+      <option value="weekly" {% if gvcn_window=='weekly' %}selected{% endif %}>Trừ từng tuần rồi cộng</option>
     </select>
   </div>
   <button class="btn" type="submit">Lưu cửa sổ</button>

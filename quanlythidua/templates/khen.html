@@ -2,6 +2,7 @@
 {% block title %}Khen thưởng{% endblock %}
 {% block body %}
 <h1 class="page-title">Khen thưởng</h1>
+<p class="page-sub">Ghi giải / lời khen theo tuần, tháng, học kỳ. Không tự suy từ bảng điểm.</p>
 <form class="toolbar" method="get">
   <div class="field"><label>Kỳ</label>
     <select name="ky" onchange="this.form.submit()">
@@ -11,7 +12,7 @@
     </select>
   </div>
 </form>
-{% if milestone_khen %}<p class="muted">Kỷ luật / khen hội học và 8 tuần lưu vào mốc (<code>milestone_entry</code>), không dùng kỳ tổng hợp.</p>{% endif %}
+{% if milestone_khen %}<p class="hint">Khen hội học ghi trên trang Hội học, không ghi ở đây.</p>{% endif %}
 <form method="post">
   <input type="hidden" name="nam_id" value="{{ nam.id }}">
   <input type="hidden" name="ky" value="{{ ky }}">

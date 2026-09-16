@@ -13,11 +13,11 @@
     <div>
       <h1>ĐOÀN TRƯỜNG THPT GIAO THỦY C</h1>
     </div>
-    <div class="sub">Thi đua chi đoàn</div>
+    <div class="sub">Thi đua chi đoàn · máy này</div>
   </div>
   <div class="header-right">
     <form method="post" action="{{ url_for('doi_nam') }}" style="display:flex;align-items:center;gap:8px">
-      <span class="hdr-label">Năm học</span>
+      <span class="hdr-label" title="Đổi năm đang làm việc">Năm đang làm</span>
       <select class="hdr-select" name="nam_id" onchange="this.form.submit()">
         {% for n in nam_hocs %}
         <option value="{{ n.id }}" {% if nam and n.id==nam.id %}selected{% endif %}>{{ n.ten }}</option>
@@ -30,26 +30,29 @@
 
 <aside class="sidebar">
   {% set nav = [
-    ['home', 'Tổng quan', url_for('home'), 'm1'],
+    ['home', 'Hôm nay làm gì', url_for('home'), 'm1'],
     ['bc_tuan', 'Nhập tuần', url_for('bao_cao_tuan'), 'm3'],
-    ['cham', 'Chấm tuần', url_for('cham_tuan'), 'm3'],
-    ['xep', 'Xếp hạng tuần', url_for('xep'), 'm4'],
+    ['cham', 'Xem điểm lớp', url_for('cham_tuan'), 'm3'],
+    ['xep', 'Xếp hạng và chốt', url_for('xep'), 'm4'],
     ['hoi_hoc', 'Hội học', url_for('hoi_hoc'), 'm4'],
-    ['periods', 'Tổng hợp kỳ', url_for('periods.index'), 'm5'],
+    ['periods', 'Tháng / học kỳ / năm', url_for('periods.index'), 'm5'],
     ['assessments', 'Thi và hoạt động', url_for('assessments.index'), 'm4'],
-    ['conduct', 'Công tác chủ nhiệm', url_for('conduct.index'), 'm5'],
+    ['conduct', 'Điểm chủ nhiệm', url_for('conduct.index'), 'm5'],
     ['khen', 'Khen thưởng', url_for('khen'), 'm6'],
-    ['bc', 'Báo cáo và xuất', url_for('baocao'), 'm6']
+    ['bc', 'In và tải file', url_for('baocao'), 'm6']
   ] %}
   {% set settings = [
     ['lop', 'Danh sách lớp', url_for('lop'), 'm2'],
-    ['qc', 'Tiêu chí', url_for('tieu_chi'), 'm7'],
-    ['formulas', 'Công thức', url_for('formulas'), 'm7'],
-    ['nam_hoc', 'Năm học', '/nam-hoc', 'm7'],
-    ['sao_luu', 'Sao lưu', '/sao-luu', 'm7']
+    ['qc', 'Tiêu chí trừ điểm', url_for('tieu_chi'), 'm7'],
+    ['formulas', 'Cách tính điểm', url_for('formulas'), 'm7'],
+    ['nam_hoc', 'Năm học và lịch', '/nam-hoc', 'm7'],
+    ['sao_luu', 'Sao lưu dữ liệu', '/sao-luu', 'm7'],
+    ['huong_dan', 'Cách dùng', url_for('huong_dan'), 'm7']
   ] %}
+  <div class="nav-group">Hàng tuần</div>
   {% for item in nav %}
   {% set key = item[0] %}{% set label = item[1] %}{% set href = item[2] %}{% set ico = item[3] %}
+  {% if key=='hoi_hoc' %}<div class="nav-group">Kết quả dài hơn tuần</div>{% endif %}
   <a class="nav-item {% if active==key %}active{% endif %}" href="{{ href }}">
     {% if ico=='m1' %}<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 10.5 12 3l9 7.5V21H3z"/><path d="M9 21v-8h6v8"/></svg>
     {% elif ico=='m3' %}<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>
@@ -66,7 +69,7 @@
   </a>
   {% endif %}
   {% endfor %}
-  <details class="nav-fold" {% if active in ['lop','qc','formulas','nam_hoc','sao_luu'] %}open{% endif %}>
+  <details class="nav-fold" {% if active in ['lop','qc','formulas','nam_hoc','sao_luu','huong_dan'] %}open{% endif %}>
     <summary class="nav-item">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="8" cy="8" r="2.5"/><path d="M3 8h2.5M10.5 8H21"/><circle cx="16" cy="16" r="2.5"/><path d="M3 16h10.5M18.5 16H21"/></svg>
       Cài đặt
@@ -88,9 +91,10 @@
 <div class="modal-bg" id="namMoi">
   <form class="modal" method="post" action="{{ url_for('nam_moi') }}">
     <input type="hidden" name="nam_id" value="{{ nam.id if nam else 0 }}">
-    <h3>Thêm năm học</h3>
-    <div class="field"><label>Năm học</label><input name="ten" placeholder="2027-2028" required></div>
-    <label style="display:flex;gap:8px;margin:12px 0;align-items:center"><input type="checkbox" name="copy" checked> Sao chép danh sách lớp</label>
+    <h3>Thêm năm học mới</h3>
+    <p class="hint">Dùng khi sang năm học khác. Số liệu năm cũ vẫn giữ trên máy này.</p>
+    <div class="field"><label>Tên năm học</label><input name="ten" placeholder="2027-2028" required></div>
+    <label style="display:flex;gap:8px;margin:12px 0;align-items:center"><input type="checkbox" name="copy" checked> Mang danh sách lớp sang năm mới (sĩ số, GVCN)</label>
     <div style="display:flex;gap:8px;justify-content:flex-end">
       <button type="button" class="btn ghost" onclick="document.getElementById('namMoi').classList.remove('show')">Hủy</button>
       <button class="btn" type="submit">Tạo</button>

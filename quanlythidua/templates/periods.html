@@ -1,9 +1,12 @@
 {% extends "base.html" %}
 {% block title %}Tổng hợp{% endblock %}
 {% block body %}
-<h1 class="page-title">Tổng hợp</h1>
+<h1 class="page-title">Tháng / học kỳ / năm</h1>
+<div class="guide">
+  <p>Chọn tháng, học kỳ hoặc cả năm. <b>Chỉ tuần đã công bố</b> dùng họp. <b>Xem thử</b> tính cả tuần chưa công bố.</p>
+</div>
 <form class="toolbar" method="get">
-  <div class="field"><label>Mô hình</label><select name="model" onchange="this.form.submit()">
+  <div class="field"><label>Cách gộp</label><select name="model" onchange="this.form.submit()">
     {% for value, label in models %}<option value="{{ value }}" {% if value==model %}selected{% endif %}>{{ label }}</option>{% endfor %}
   </select></div>
   <div class="field"><label>Phạm vi</label><select name="mode" onchange="this.form.submit()">
@@ -12,9 +15,9 @@
   <div class="field"><label>Kỳ</label><select name="key" onchange="this.form.submit()">
     {% for value, label in keys %}<option value="{{ value }}" {% if value==key %}selected{% endif %}>{{ label }}</option>{% endfor %}
   </select></div>
-  <div class="field"><label>Dữ liệu</label><select name="view" onchange="this.form.submit()">
-    <option value="official" {% if resultView=='official' %}selected{% endif %}>Chính thức</option>
-    <option value="preview" {% if resultView=='preview' %}selected{% endif %}>Xem trước</option>
+  <div class="field"><label>Lấy số liệu</label><select name="view" onchange="this.form.submit()">
+    <option value="official" {% if resultView=='official' %}selected{% endif %}>Chỉ tuần đã công bố</option>
+    <option value="preview" {% if resultView=='preview' %}selected{% endif %}>Xem thử</option>
   </select></div>
   <a class="btn-gold" href="{{ url_for('periods.export', scope=mode, mode=mode, key=key, model=model, view=resultView, format='xlsx', cut='school') }}">Xuất Excel</a>
 </form>

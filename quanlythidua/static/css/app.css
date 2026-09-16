@@ -446,7 +446,7 @@ table.data.conduct-table { table-layout: auto; width: max-content; min-width: 10
   .nav-fold { display: flex; flex-direction: row; align-items: center; flex: 0 0 auto; }
   .nav-fold .nav-item { padding-left: 11px; }
   .nav-item { flex: 0 0 auto; padding: 9px 11px; margin: 0 3px 0 0; white-space: nowrap; }
-  .nav-item svg, .side-foot { display: none; }
+  .nav-item svg, .side-foot, .nav-group { display: none; }
   .main { margin-left: 0; margin-top: calc(var(--head) + 58px); padding: 18px 12px 36px; }
   .page-title { font-size: 23px; }
   .stats { grid-template-columns: 1fr 1fr; gap: 10px; }
@@ -464,9 +464,57 @@ table.data.conduct-table { table-layout: auto; width: max-content; min-width: 10
   .adjust-grid .btn { grid-column: auto; width: 100%; }
 }
 
+.nav-group {
+  color: #8eabc4;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: .06em;
+  text-transform: uppercase;
+  padding: 12px 12px 4px;
+}
+.guide {
+  background: #f4f8fc;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: 12px 16px;
+  margin: 0 0 14px;
+  color: #2a4a66;
+  line-height: 1.5;
+}
+.guide p { margin: 0 0 8px; }
+.guide p:last-child { margin: 0; }
+.guide ol, .guide ul { margin: 6px 0 0; padding-left: 20px; }
+.guide li { margin: 4px 0; }
+.hint {
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1.45;
+  margin: 4px 0 10px;
+}
+.next-box {
+  background: linear-gradient(#fffdf4, #fff7dd);
+  border: 1px solid #ead89a;
+  border-radius: var(--radius);
+  padding: 14px 16px;
+  margin: 0 0 14px;
+  display: flex;
+  gap: 14px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+.next-box h2 { margin: 0 0 4px; font-size: 16px; }
+.next-box p { margin: 0; color: #6b5a28; }
+.next-box .btn { margin-left: auto; }
+.howto { max-width: 760px; }
+.howto h2 { font-size: 17px; margin: 18px 0 8px; }
+.howto ol { padding-left: 22px; }
+.howto li { margin: 6px 0; line-height: 1.45; }
+.field .hint { margin: 4px 0 0; font-weight: 400; }
+
 @media (max-width: 480px) {
   .header-right > a.btn-gold { display: none; }
   .stats { grid-template-columns: 1fr; }
   .two { gap: 10px; }
   .card { padding: 12px 10px 6px; border-radius: 12px; }
+  .next-box .btn { margin-left: 0; width: 100%; justify-content: center; }
 }

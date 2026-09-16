@@ -1,39 +1,41 @@
 {% extends "base.html" %}
-{% block title %}Sao lưu{% endblock %}
+{% block title %}Sao lưu dữ liệu{% endblock %}
 {% block body %}
-<h1 class="page-title">Sao lưu và phục hồi</h1>
-<p class="page-sub">Sao lưu khi ứng dụng đang mở (VACUUM INTO). Phục hồi in-app chỉ có trên cửa sổ Electron.</p>
+<h1 class="page-title">Sao lưu dữ liệu</h1>
+<p class="page-sub">Giữ một bản trên USB để máy hỏng không mất số thi đua.</p>
+
+<div class="guide">
+  <p>Nên sao lưu <b>sau mỗi buổi nhập tuần</b>. File nằm trên máy này; USB là bản dự phòng.</p>
+</div>
+
 <div class="card">
-  <h2>Sao lưu</h2>
+  <h2>1. Cất bản sao</h2>
   {% if last_backup_at %}
-  <p>Lần gần nhất: <b>{{ last_backup_at }}</b>{% if last_backup_path %} · <code>{{ last_backup_path }}</code>{% endif %}</p>
+  <p>Lần gần nhất: <b>{{ last_backup_at }}</b></p>
   {% else %}
-  <p class="muted">Chưa có sao lưu ghi nhận.</p>
+  <p class="muted">Chưa cất lần nào trên máy này.</p>
   {% endif %}
   <form method="post" action="/sao-luu">
     <div class="field">
-      <label for="backup-path">Thư mục hoặc file đích (để trống = data/backups/)</label>
-      <input id="backup-path" name="path" placeholder="E:\USB hoặc để trống">
+      <label for="backup-path">Chọn chỗ lưu (để trống thì phần mềm tự cất trong máy)</label>
+      <input id="backup-path" name="path" placeholder="Ví dụ ổ USB: E:\ ">
+      <p class="hint">Có thể ghi đường dẫn thư mục USB. Để trống nếu chỉ muốn bản trong máy.</p>
     </div>
-    <p style="margin:16px 0 0"><button type="submit" class="btn">Sao lưu</button></p>
+    <p style="margin:16px 0 0"><button type="submit" class="btn">Sao lưu ngay</button></p>
   </form>
 </div>
+
 <div class="card" id="restore-desktop" hidden>
-  <h2>Phục hồi</h2>
-  <p>Chọn file <code>.db</code> đã sao lưu. Ứng dụng kiểm tra file, thay dữ liệu hiện tại, xóa <code>-wal</code>/<code>-shm</code>, rồi khởi động lại.</p>
-  <p style="margin:16px 0 0"><button type="button" class="btn" id="restore-btn">Phục hồi từ file…</button></p>
+  <h2>2. Lấy lại dữ liệu đã cất</h2>
+  <p>Chọn file đã sao lưu. Toàn bộ số liệu hiện tại trên máy sẽ bị thay bằng bản đó. Làm khi đổi máy hoặc khi lỡ xóa nhầm.</p>
+  <p style="margin:16px 0 0"><button type="button" class="btn" id="restore-btn">Chọn file đã sao lưu…</button></p>
   <p class="muted" id="restore-status"></p>
 </div>
+
 <div class="card" id="restore-manual">
-  <h2>Phục hồi thủ công</h2>
-  <p>Khi mở bằng <code>chay.bat</code> không có nút Phục hồi in-app. Đóng ứng dụng rồi:</p>
-  <ol>
-    <li>Sao chép file <code>.db</code> vào <code>data/thidua.db</code> (thay file hiện tại).</li>
-    <li>Xóa <code>data/thidua.db-wal</code> và <code>data/thidua.db-shm</code> nếu có.</li>
-    <li>Nếu kèm thư mục <code>BaoCao</code>, chép đè vào thư mục <code>BaoCao</code> của ứng dụng.</li>
-    <li>Chạy lại <code>chay.bat</code>.</li>
-  </ol>
-  <p class="muted">File có <code>user_version</code> lớn hơn ứng dụng sẽ bị từ chối khi kiểm tra. File cũ hơn được nâng schema lúc mở.</p>
+  <h2>2. Lấy lại dữ liệu (khi mở bằng trình duyệt)</h2>
+  <p>Đóng phần mềm. Nhờ người phụ trách máy copy file đã sao lưu đè vào thư mục dữ liệu của phần mềm, rồi mở lại.</p>
+  <p class="hint">Nếu dùng cửa sổ Thi đua (chay-app), nút chọn file hiện sẵn — không cần làm tay.</p>
 </div>
 {% endblock %}
 {% block extra %}
@@ -59,11 +61,11 @@
       });
       const data = await res.json();
       if (!data.ok) {
-        status.textContent = data.error || "File không hợp lệ.";
+        status.textContent = data.error || "File này không dùng được.";
         return;
       }
-      if (!confirm("Phục hồi sẽ thay dữ liệu hiện tại và khởi động lại. Tiếp tục?")) return;
-      status.textContent = "Đang phục hồi…";
+      if (!confirm("Số liệu hiện tại trên máy sẽ bị thay bằng bản đã chọn. Tiếp tục?")) return;
+      status.textContent = "Đang lấy lại dữ liệu…";
       await desktop.restoreDb(filePath);
     } catch (error) {
       status.textContent = error && error.message ? error.message : String(error);
