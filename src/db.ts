@@ -113,8 +113,20 @@ export class WorkflowError extends Error {
   constructor(status: number, message: string) { super(message); this.status = status; }
 }
 
+const txDepth = new WeakMap<Db, number>();
+const nativeIsTransaction = "isTransaction" in DatabaseSync.prototype;
+
 export function transaction<T>(con: Db, fn: () => T): T {
-  const nested = con.isTransaction;
+  // Node < 22.16 has no DatabaseSync.isTransaction; track depth so SAVEPOINT and plan.ts keep working.
+  if (!nativeIsTransaction && !Object.getOwnPropertyDescriptor(con, "isTransaction")) {
+    Object.defineProperty(con, "isTransaction", {
+      configurable: true,
+      enumerable: false,
+      get() { return (txDepth.get(this as Db) ?? 0) > 0; },
+    });
+  }
+  const nested = Boolean(con.isTransaction);
+  if (!nativeIsTransaction) txDepth.set(con, (txDepth.get(con) ?? 0) + 1);
   con.exec(nested ? "SAVEPOINT workflow" : "BEGIN IMMEDIATE");
   try {
     const result = fn();
@@ -123,6 +135,12 @@ export function transaction<T>(con: Db, fn: () => T): T {
   } catch (error) {
     con.exec(nested ? "ROLLBACK TO workflow; RELEASE workflow" : "ROLLBACK");
     throw error;
+  } finally {
+    if (!nativeIsTransaction) {
+      const next = (txDepth.get(con) ?? 1) - 1;
+      if (next <= 0) txDepth.delete(con);
+      else txDepth.set(con, next);
+    }
   }
 }
 

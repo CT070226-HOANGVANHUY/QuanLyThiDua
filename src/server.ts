@@ -305,7 +305,7 @@ function reportPage(
     ...ctx(), ...wf, active: "bc_tuan", filter_action: "/bao-cao-tuan",
     extra_q: current ? [["lop_id", String(current.id)]] : [], lops, current, reported,
     locked: locked(tuan) || Boolean(submitted?.recovery),
-    status: loaded.bc ? (loaded.bc.trang_thai === "da_gui" ? "Đã gửi" : "Nháp") : "Chưa nhập",
+    status: loaded.bc ? (loaded.bc.trang_thai === "da_gui" ? "Đã hoàn tất" : "Nháp") : "Chưa nhập",
     bc: loaded.bc ?? {}, nghi: loaded.nghi, sk, loai_nn: LOAI_NN,
     thai_do: loaded.sk.filter((event) => event.loai === "thai_do"),
     errors: submitted?.parsed.errors ?? {}, error_summary: submitted?.message || "",
@@ -329,7 +329,7 @@ app.post("/bao-cao-tuan", (req, res) => {
     const saved = saveReport(con, n, {
       tuan_id: f.tuan_id ? Number(f.tuan_id) : undefined, week_start: f.week_start,
     }, Number(f.lop_id), Number(f.revision || 0), parsed, action);
-    flash(res, action === "submit" ? "Đã gửi báo cáo" : "Đã lưu nháp");
+    flash(res, action === "submit" ? "Đã hoàn tất lớp" : "Đã lưu nháp");
     const week = saved.week;
     return res.redirect(`/bao-cao-tuan?${new URLSearchParams({
       nam_id: String(n), week_start: String(week.ngay_bd || ""), tuan_id: String(week.id),

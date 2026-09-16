@@ -16,7 +16,7 @@
   <label for="score-class">Lớp</label>
   <select id="score-class" name="lop_id" onchange="this.form.submit()">
     {% for it in results %}
-    <option value="{{ it.lop_id }}" {% if it.lop_id==current.lop_id %}selected{% endif %}>{{ it.ten }} — {% if it.xt_chung!=null %}Xếp thứ {{ it.xt_chung }}{% elif it.bao_cao %}Đang tính{% else %}Chưa báo cáo{% endif %}</option>
+    <option value="{{ it.lop_id }}" {% if it.lop_id==current.lop_id %}selected{% endif %}>{{ it.ten }} — {% if it.xt_chung!=null %}Xếp thứ {{ it.xt_chung }}{% elif it.bao_cao %}Đang tính{% else %}Chưa nhập{% endif %}</option>
     {% endfor %}
   </select>
 </form>
@@ -27,14 +27,14 @@
       <h2>{{ current.ten }}</h2>
       <p>{{ tuan.ngay_bd }} → {{ tuan.ngay_kt }}</p>
     </div>
-    <span class="status-badge {% if locked %}locked{% elif current.bao_cao %}ready{% endif %}">{% if locked %}Đã khóa{% elif current.bao_cao %}Đang nhập{% else %}Chưa báo cáo{% endif %}</span>
+    <span class="status-badge {% if locked %}locked{% elif current.bao_cao %}ready{% endif %}">{% if locked %}Đã khóa{% elif current.bao_cao %}Đang nhập{% else %}Chưa nhập{% endif %}</span>
   </div>
 
   {% if not current.bao_cao %}
   <div class="empty-state">
-    <b>Chưa có báo cáo của lớp {{ current.ten }}</b>
-    <p>Nhập báo cáo tuần trước; điểm và xếp hạng sẽ được tính từ dữ liệu có nguồn.</p>
-    <a class="btn" href="{{ url_for('bao_cao_tuan',nam_id=nam.id,nam=year,thang=month,week_start=selection.week_start,tuan_id=selection.tuan_id,lop_id=current.lop_id) }}">Mở báo cáo tuần</a>
+    <b>Chưa nhập dữ liệu lớp {{ current.ten }}</b>
+    <p>Nhập tuần trước; điểm và xếp hạng sẽ được tính từ dữ liệu có nguồn.</p>
+    <a class="btn" href="{{ url_for('bao_cao_tuan',nam_id=nam.id,nam=year,thang=month,week_start=selection.week_start,tuan_id=selection.tuan_id,lop_id=current.lop_id) }}">Mở nhập tuần</a>
   </div>
   {% else %}
   <div class="score-metrics">
@@ -59,7 +59,7 @@
       <thead><tr><th>Tiêu chí</th><th>Nguồn</th><th>Số lượng</th><th>Điểm/đơn vị</th><th>Thành điểm</th><th>Lý do</th></tr></thead>
       <tbody>
       {% for ln in current.lines %}
-      <tr><td>{{ ln.ten_snapshot or ln.tieu_chi }}</td><td>{{ 'Từ báo cáo' if ln.nguon=='auto' else 'Điều chỉnh' }}</td><td>{{ ln.so_luong }}</td><td>{{ ln.diem_mot }} / {{ ln.don_vi_snapshot }}</td><td><b>{{ ln.thanh_diem }}</b></td><td>{{ ln.reason or '—' }}</td></tr>
+      <tr><td>{{ ln.ten_snapshot or ln.tieu_chi }}</td><td>{{ 'Từ phiếu nhập' if ln.nguon=='auto' else 'Điều chỉnh' }}</td><td>{{ ln.so_luong }}</td><td>{{ ln.diem_mot }} / {{ ln.don_vi_snapshot }}</td><td><b>{{ ln.thanh_diem }}</b></td><td>{{ ln.reason or '—' }}</td></tr>
       {% else %}<tr><td colspan="6" class="muted">Không phát sinh điểm cộng/trừ.</td></tr>{% endfor %}
       </tbody>
     </table>
@@ -75,7 +75,7 @@
     <input type="hidden" name="thang" value="{{ month }}">
     <input type="hidden" name="revision" value="{{ tuan.revision or 0 }}">
     <h3>Điều chỉnh nề nếp</h3>
-    <p class="muted">Chỉ dùng cho khoản bổ sung ngoài báo cáo. Nhập 0 để xóa điều chỉnh đã lưu.</p>
+    <p class="muted">Chỉ dùng cho khoản bổ sung ngoài phiếu nhập tuần. Nhập 0 để xóa điều chỉnh đã lưu.</p>
     <div class="adjust-grid">
       <div class="field"><label for="criterion">Tiêu chí</label><select id="criterion" name="tieu_chi_id">{% for tc in tieu_chi %}<option value="{{ tc.id }}">{{ tc.ten }} ({{ tc.diem }}/{{ tc.don_vi }})</option>{% endfor %}</select></div>
       <div class="field"><label for="quantity">Số lượng</label><input id="quantity" name="so_luong" type="number" min="0" step="1" value="1"></div>

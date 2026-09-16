@@ -4,8 +4,6 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>{% block title %}Tổng quan{% endblock %} · Thi đua Giao Thủy C</title>
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;500;600;700;800&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="{{ url_for('static', filename='css/app.css') }}">
 </head>
 <body>
@@ -33,12 +31,12 @@
 <aside class="sidebar">
   {% set nav = [
     ['home', 'Tổng quan', url_for('home'), 'm1'],
-    ['bc_tuan', 'Báo cáo tuần', url_for('bao_cao_tuan'), 'm3'],
+    ['bc_tuan', 'Nhập tuần', url_for('bao_cao_tuan'), 'm3'],
     ['cham', 'Chấm tuần', url_for('cham_tuan'), 'm3'],
     ['xep', 'Xếp hạng tuần', url_for('xep'), 'm4'],
     ['periods', 'Tổng hợp kỳ', url_for('periods.index'), 'm5'],
     ['assessments', 'Thi và hoạt động', url_for('assessments.index'), 'm4'],
-    ['conduct', 'Nề nếp GVCN', url_for('conduct.index'), 'm5'],
+    ['conduct', 'Công tác chủ nhiệm', url_for('conduct.index'), 'm5'],
     ['khen', 'Khen thưởng', url_for('khen'), 'm6'],
     ['bc', 'Báo cáo và xuất', url_for('baocao'), 'm6']
   ] %}

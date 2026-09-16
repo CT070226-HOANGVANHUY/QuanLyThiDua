@@ -8,8 +8,8 @@
 <p class="page-sub">{% if tuan and tuan.ngay_bd %}{{ tuan.ngay_bd }} → {{ tuan.ngay_kt }}{% if tuan.calendar_no %} · Tuần {{ tuan.calendar_no }}{% endif %}{% else %}{{ tuan_hien_tai }}{% endif %} · {{ status_label }}</p>
 <div class="stats">
   <div class="stat blue"><div class="k">Lớp</div><div class="v">{{ so_lop }}</div></div>
-  <div class="stat green"><div class="k">Đã báo cáo</div><div class="v">{{ da_bao }}</div></div>
-  <div class="stat yellow"><div class="k">Chưa báo cáo</div><div class="v">{{ chua_bao }}</div></div>
+  <div class="stat green"><div class="k">Đã hoàn tất</div><div class="v">{{ da_bao }}</div></div>
+  <div class="stat yellow"><div class="k">Chưa hoàn tất</div><div class="v">{{ chua_bao }}</div></div>
   <div class="stat purple"><div class="k">Vi phạm</div><div class="v">{{ so_vp }}</div></div>
 </div>
 <div class="two">
@@ -41,7 +41,7 @@
 </div>
 {% if chart %}
 <div class="chart-card">
-  <div class="chart-head"><b>Số lớp đã gửi báo cáo</b><span>tuần có dữ liệu gần đây</span></div>
+  <div class="chart-head"><b>Số lớp đã hoàn tất</b><span>tuần có dữ liệu gần đây</span></div>
   <div class="bars">
     {% for c in chart %}
     <div class="bar-col">
