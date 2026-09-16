@@ -74,7 +74,7 @@ test("migrate v4 inserts empty 20-11/26-3, no weeks, user_version=8", () => {
       PRAGMA user_version=4;`);
     run(db, "INSERT INTO nam_hoc(id,ten,active) VALUES (1,'2026-2027',1)");
     migrate(db);
-    assert.equal(get(db, "PRAGMA user_version")?.user_version, 8);
+    assert.equal(get(db, "PRAGMA user_version")?.user_version, 10);
     const rows = all(db, "SELECT ma, loai, ten FROM milestone WHERE nam_hoc_id=1 ORDER BY ma");
     assert.deepEqual(rows.map((r) => r.ma), ["20-11", "26-3"]);
     assert.ok(rows.every((r) => r.loai === "hoi_hoc"));
@@ -105,7 +105,7 @@ test("v6 with su_kien gets v7 columns then v8 tables; paper loai backfill giay",
     run(db, "INSERT INTO year_formula(nam_id) VALUES (1)");
     run(db, "INSERT INTO su_kien(loai,ho_ten) VALUES ('di_muon','A'),('vp_khac','B'),('other','C')");
     migrate(db);
-    assert.equal(get(db, "PRAGMA user_version")?.user_version, 8);
+    assert.equal(get(db, "PRAGMA user_version")?.user_version, 10);
     for (const col of ["tap_the", "gvcn_phat_hien", "nguon"]) {
       assert.ok(colNames(db, "su_kien").includes(col), col);
     }
@@ -122,7 +122,7 @@ test("addNamHoc inserts empty hội học rows and copyFrom does not copy weeks 
   try {
     const namId = Number(addNamHoc(db, "2026-2027"));
     setActiveNam(db, namId);
-    assert.equal(get(db, "PRAGMA user_version")?.user_version, 8);
+    assert.equal(get(db, "PRAGMA user_version")?.user_version, 10);
     const rows = all(db, "SELECT * FROM milestone WHERE nam_hoc_id=? ORDER BY ma", [namId]);
     assert.deepEqual(rows.map((r) => [r.ma, r.loai, r.ten]), [
       ["20-11", "hoi_hoc", "Hội học 20/11"],
