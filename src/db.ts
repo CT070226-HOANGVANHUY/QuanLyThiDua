@@ -3,7 +3,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { DatabaseSync } from "node:sqlite";
 import { GIO_KEYS, KTM_SCORE_KEYS, NN_KEYS, SCORE_FIELDS } from "./scoring.ts";
-import { migrate } from "./migrate.ts";
+import { importRoster2026, migrate } from "./migrate.ts";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 export const DATA_DIR = path.join(ROOT, "data");
@@ -32,12 +32,40 @@ export function tableExists(con: Db, name: string): boolean {
   return Boolean(get(con, "SELECT name FROM sqlite_master WHERE type='table' AND name=?", [name]));
 }
 
-export function khoiFromTen(ten: string): number {
-  return Number.parseInt(String(ten).trim(), 10);
-}
-
 export function nhomFromLoaiHinh(loaiHinh: string): number {
   return loaiHinh === "chon" ? 1 : 2;
+}
+
+export function syncNhapWeekClass(con: Db, namId: number, lopId?: number) {
+  if (!tableExists(con, "week_class") || !tableExists(con, "tuan")) return;
+  const lopKey = lopId ?? null;
+  run(con, `UPDATE week_class SET
+      ten=(SELECT ten FROM lop WHERE lop.id=week_class.lop_id),
+      nhom=(SELECT nhom FROM lop WHERE lop.id=week_class.lop_id),
+      si_so=(SELECT si_so FROM lop WHERE lop.id=week_class.lop_id),
+      gvcn=COALESCE((SELECT gvcn FROM lop WHERE lop.id=week_class.lop_id), gvcn),
+      thu_tu=COALESCE((SELECT thu_tu FROM lop WHERE lop.id=week_class.lop_id), thu_tu),
+      loai_hinh=COALESCE((SELECT loai_hinh FROM lop WHERE lop.id=week_class.lop_id), loai_hinh),
+      gvcn_group_id=(SELECT gvcn_group_id FROM lop WHERE lop.id=week_class.lop_id),
+      ap_dung=COALESCE((SELECT ap_dung FROM lop WHERE lop.id=week_class.lop_id), ap_dung)
+    WHERE tuan_id IN (SELECT id FROM tuan WHERE nam_hoc_id=? AND trang_thai='nhap')
+      AND (? IS NULL OR lop_id=?)`, [namId, lopKey, lopKey]);
+  run(con, `INSERT OR IGNORE INTO week_class(tuan_id,lop_id,ten,nhom,si_so,gvcn,thu_tu,loai_hinh,gvcn_group_id,ap_dung)
+    SELECT t.id, lop.id, lop.ten, lop.nhom, lop.si_so, COALESCE(lop.gvcn,''), COALESCE(lop.thu_tu,0),
+      CASE WHEN lop.loai_hinh='chon' THEN 'chon' ELSE 'thuong' END, lop.gvcn_group_id, 1
+    FROM tuan t
+    JOIN lop ON lop.nam_hoc_id=t.nam_hoc_id AND lop.ap_dung=1
+    WHERE t.nam_hoc_id=? AND t.trang_thai='nhap'
+      AND (? IS NULL OR lop.id=?)
+      AND EXISTS (SELECT 1 FROM week_class w WHERE w.tuan_id=t.id)
+      AND NOT EXISTS (SELECT 1 FROM week_class w WHERE w.tuan_id=t.id AND w.lop_id=lop.id)`,
+  [namId, lopKey, lopKey]);
+}
+
+export function applyLeftoverWeekClass(con: Db, namId: number) {
+  if (!tableExists(con, "week_class")) return;
+  run(con, `UPDATE week_class SET ap_dung=0
+    WHERE lop_id IN (SELECT id FROM lop WHERE nam_hoc_id=? AND ap_dung=0)`, [namId]);
 }
 
 const NN_SQL = NN_KEYS.map((k) => `${k} REAL NOT NULL DEFAULT 0`).join(", ");
@@ -203,23 +231,8 @@ export function initDb(con: Db): void {
   }
   if (get(con, "SELECT COUNT(*) AS c FROM nam_hoc")!.c) return;
   run(con, "INSERT INTO nam_hoc(ten, active) VALUES (?, 1)", [ROSTER_YEAR]);
-  const namId = get(con, "SELECT id FROM nam_hoc WHERE ten=?", [ROSTER_YEAR])!.id;
-  for (const row of seed.lop) {
-    const loaiHinh = row.loai_hinh === "chon" ? "chon" : "thuong";
-    run(con, `INSERT INTO lop(nam_hoc_id, ten, khoi, nhom, si_so, gvcn, thu_tu, nu, kt, loai_hinh, ap_dung)
-      VALUES (?,?,?,?,?,?,?,?,?,?,1)`, [
-      namId,
-      row.ten,
-      khoiFromTen(row.ten),
-      nhomFromLoaiHinh(loaiHinh),
-      row.si_so,
-      row.gvcn,
-      row.thu_tu,
-      row.nu,
-      row.kt,
-      loaiHinh,
-    ]);
-  }
+  const namId = Number(get(con, "SELECT id FROM nam_hoc WHERE ten=?", [ROSTER_YEAR])!.id);
+  importRoster2026(con, namId);
   for (const row of seed.quy_che) {
     run(con, "INSERT INTO quy_che(stt, muc, noi_dung, diem, ghi_chu) VALUES (?,?,?,?,?)", row);
   }
@@ -301,6 +314,7 @@ export function setLopApDung(con: Db, namId: number, lopId: number, apDung: numb
     requireOwned(con, "lop", lopId, namId);
     const value = apDung === 0 ? 0 : 1;
     run(con, "UPDATE lop SET ap_dung=? WHERE id=? AND nam_hoc_id=?", [value, lopId, namId]);
+    syncNhapWeekClass(con, namId, lopId);
     return value;
   });
 }
@@ -309,7 +323,7 @@ export function upsertLop(con: Db, namId: number, data: Dict) {
   return transaction(con, () => {
   requireActiveYear(con, namId);
   data.ten = String(data.ten ?? "").trim().toUpperCase();
-  const khoiTen = khoiFromTen(data.ten);
+  const khoiTen = Number.parseInt(data.ten, 10);
   if ([10, 11, 12].includes(khoiTen)) data.khoi = khoiTen;
   let loaiHinh: "chon" | "thuong";
   let nhom: number;
@@ -351,6 +365,7 @@ export function upsertLop(con: Db, namId: number, data: Dict) {
       data.id,
       namId,
     ]);
+    syncNhapWeekClass(con, namId, Number(data.id));
     return Number(data.id);
   }
   const r = run(con, `INSERT INTO lop(nam_hoc_id, ten, khoi, nhom, si_so, gvcn, thu_tu, nu, kt, loai_hinh, ap_dung)
@@ -367,7 +382,9 @@ export function upsertLop(con: Db, namId: number, data: Dict) {
     loaiHinh,
     apDung,
   ]);
-  return Number(r.lastInsertRowid);
+  const id = Number(r.lastInsertRowid);
+  syncNhapWeekClass(con, namId, id);
+  return id;
   });
 }
 export function deleteLop(con: Db, namId: number, lopId: number) {

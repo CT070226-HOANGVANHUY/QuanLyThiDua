@@ -4,8 +4,9 @@ import { mkdtempSync, rmSync, existsSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { DatabaseSync } from "node:sqlite";
-import { get, all, listLop, run } from "../src/db.ts";
+import { get, all, initDb, listLop, run, setLopApDung, upsertLop } from "../src/db.ts";
 import { migrate } from "../src/migrate.ts";
+import { initPlan, setTuanStatus } from "../src/plan.ts";
 
 const OLD_LOP: [number, string, number][] = [
   [1, "11A1", 47], [1, "11A2", 44], [1, "11A3", 47], [1, "11A4", 46],
@@ -102,11 +103,52 @@ test("v4 roster migrates to v5 columns, backfill, leftover ap_dung=0 and nhap we
     assert.equal(nhapA4?.nhom, 2);
     const leftoverWeek = get(db, "SELECT * FROM week_class WHERE tuan_id=1 AND lop_id=?", [leftover?.id]);
     assert.equal(leftoverWeek?.ap_dung, 0);
+    assert.equal(get(db, "SELECT ap_dung FROM week_class WHERE tuan_id=2 AND lop_id=?", [leftover?.id])?.ap_dung, 0);
+    const nhapD1 = get(db, "SELECT * FROM week_class WHERE tuan_id=1 AND lop_id=?", [d1?.id]);
+    assert.ok(nhapD1);
+    assert.equal(nhapD1?.ap_dung, 1);
+    assert.equal(nhapD1?.ten, "10D1");
+    assert.equal(get(db, "SELECT 1 AS n FROM week_class WHERE tuan_id=2 AND lop_id=?", [d1?.id]), undefined);
     const chotA4 = get(db, "SELECT * FROM week_class WHERE tuan_id=2 AND lop_id=?", [a4?.id]);
     assert.equal(chotA4?.si_so, 43);
     assert.equal(chotA4?.nhom, 1);
     assert.equal(listLop(db, 1).some((row) => row.ten === "10A7"), false);
     assert.ok(listLop(db, 1, { activeOnly: false }).some((row) => row.ten === "10A7"));
+  } finally { db.close(); }
+});
+
+test("leftover 10A7 without da_gui does not 409 chốt after import", () => {
+  const db = openV4Roster();
+  try {
+    migrate(db);
+    initDb(db);
+    initPlan(db);
+    run(db, "UPDATE tuan SET ngay_bd='2026-09-11', ngay_kt='2026-09-17', revision=0 WHERE id=1");
+    const leftoverId = Number(get(db, "SELECT id FROM lop WHERE ten='10A7'")?.id);
+    assert.equal(get(db, "SELECT ap_dung FROM week_class WHERE tuan_id=1 AND lop_id=?", [leftoverId])?.ap_dung, 0);
+    for (const row of all(db, "SELECT lop_id FROM week_class WHERE tuan_id=1 AND ap_dung=1")) {
+      run(db, "INSERT INTO bao_cao_tuan(tuan_id,lop_id,trang_thai) VALUES (1,?,'da_gui')", [row.lop_id]);
+    }
+    assert.equal(get(db, "SELECT 1 AS n FROM bao_cao_tuan WHERE tuan_id=1 AND lop_id=?", [leftoverId]), undefined);
+    setTuanStatus(db, 1, 1, 0, "chot");
+    assert.equal(get(db, "SELECT trang_thai FROM tuan WHERE id=1")?.trang_thai, "chot");
+  } finally { db.close(); }
+});
+
+test("setLopApDung inserts leftover into nhap week_class and leaves chot frozen", () => {
+  const db = openV4Roster();
+  try {
+    migrate(db);
+    const leftoverId = Number(get(db, "SELECT id FROM lop WHERE ten='10A7'")?.id);
+    assert.equal(get(db, "SELECT ap_dung FROM week_class WHERE tuan_id=1 AND lop_id=?", [leftoverId])?.ap_dung, 0);
+    assert.equal(get(db, "SELECT ap_dung FROM week_class WHERE tuan_id=2 AND lop_id=?", [leftoverId])?.ap_dung, 0);
+    setLopApDung(db, 1, leftoverId, 1);
+    assert.equal(get(db, "SELECT ap_dung FROM lop WHERE id=?", [leftoverId])?.ap_dung, 1);
+    assert.equal(get(db, "SELECT ap_dung FROM week_class WHERE tuan_id=1 AND lop_id=?", [leftoverId])?.ap_dung, 1);
+    assert.equal(get(db, "SELECT ap_dung FROM week_class WHERE tuan_id=2 AND lop_id=?", [leftoverId])?.ap_dung, 0);
+    const zId = upsertLop(db, 1, { ten: "10Z1", khoi: 10, si_so: 40, loai_hinh: "thuong" });
+    assert.ok(get(db, "SELECT 1 AS n FROM week_class WHERE tuan_id=1 AND lop_id=? AND ap_dung=1", [zId]));
+    assert.equal(get(db, "SELECT 1 AS n FROM week_class WHERE tuan_id=2 AND lop_id=?", [zId]), undefined);
   } finally { db.close(); }
 });
 

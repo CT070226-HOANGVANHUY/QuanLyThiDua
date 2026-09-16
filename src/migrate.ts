@@ -1,6 +1,6 @@
 import { existsSync } from "node:fs";
 import path from "node:path";
-import { addColumn, all, get, loadSeed, run, tableExists, type Db } from "./db.ts";
+import { addColumn, all, applyLeftoverWeekClass, get, loadSeed, run, syncNhapWeekClass, tableExists, type Db } from "./db.ts";
 
 function userVersion(con: Db): number {
   return Number(get(con, "PRAGMA user_version")?.user_version ?? 0);
@@ -18,7 +18,7 @@ function backupBeforeV5(con: Db) {
   con.exec(`VACUUM INTO '${backupPath.replaceAll("'", "''")}'`);
 }
 
-export function ensureV5Columns(con: Db) {
+function ensureV5Columns(con: Db) {
   if (tableExists(con, "lop")) {
     addColumn(con, "lop", "nu", "INTEGER NOT NULL DEFAULT 0");
     addColumn(con, "lop", "kt", "INTEGER NOT NULL DEFAULT 0");
@@ -78,17 +78,8 @@ export function importRoster2026(con: Db, namId?: number) {
   for (const lop of all(con, "SELECT id, ten FROM lop WHERE nam_hoc_id=?", [id])) {
     if (!names.has(String(lop.ten))) run(con, "UPDATE lop SET ap_dung=0 WHERE id=?", [lop.id]);
   }
-  if (!tableExists(con, "week_class")) return;
-  run(con, `UPDATE week_class SET
-      ten=(SELECT ten FROM lop WHERE lop.id=week_class.lop_id),
-      nhom=(SELECT nhom FROM lop WHERE lop.id=week_class.lop_id),
-      si_so=(SELECT si_so FROM lop WHERE lop.id=week_class.lop_id),
-      gvcn=(SELECT gvcn FROM lop WHERE lop.id=week_class.lop_id),
-      thu_tu=(SELECT thu_tu FROM lop WHERE lop.id=week_class.lop_id),
-      loai_hinh=(SELECT loai_hinh FROM lop WHERE lop.id=week_class.lop_id),
-      gvcn_group_id=(SELECT gvcn_group_id FROM lop WHERE lop.id=week_class.lop_id),
-      ap_dung=(SELECT ap_dung FROM lop WHERE lop.id=week_class.lop_id)
-    WHERE tuan_id IN (SELECT id FROM tuan WHERE nam_hoc_id=? AND trang_thai='nhap')`, [id]);
+  applyLeftoverWeekClass(con, id);
+  syncNhapWeekClass(con, id);
 }
 
 function migrateV5(con: Db) {

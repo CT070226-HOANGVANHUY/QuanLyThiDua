@@ -653,13 +653,9 @@ function freezeWeekClasses(con: Db, namId: number, tuanId: number) {
   }
 }
 
-export function weekRoster(con: Db, namId: number, tuanId?: number) {
-  if (tuanId) {
-    const frozen = all(con, `SELECT lop_id AS id, ten, nhom, si_so, gvcn, thu_tu, loai_hinh, ap_dung, gvcn_group_id
-      FROM week_class WHERE tuan_id=? AND ap_dung=1 ORDER BY thu_tu, ten`, [tuanId]);
-    if (frozen.length) return frozen;
-  }
-  return listLop(con, namId);
+export function frozenWeekClasses(con: Db, tuanId: number) {
+  return all(con, `SELECT lop_id AS id,ten,nhom,si_so,gvcn,thu_tu,loai_hinh,ap_dung,gvcn_group_id
+    FROM week_class WHERE tuan_id=? AND ap_dung=1 ORDER BY thu_tu,ten`, [tuanId]);
 }
 
 export function sampleWeek(con: Db, namId: number) {
@@ -819,8 +815,7 @@ export function buildWeekInputs(con: Db, namId: number, tuanId: number) {
   const week = requireOwned(con, "tuan", tuanId, namId);
   const reports: Record<number, Dict> = {};
   for (const report of all(con, "SELECT * FROM bao_cao_tuan WHERE tuan_id=?", [tuanId])) reports[Number(report.lop_id)] = report;
-  const frozen = all(con, `SELECT lop_id AS id,ten,nhom,si_so,gvcn,thu_tu,loai_hinh,ap_dung,gvcn_group_id
-    FROM week_class WHERE tuan_id=? AND ap_dung=1 ORDER BY thu_tu,ten`, [tuanId]);
+  const frozen = frozenWeekClasses(con, tuanId);
   const roster = frozen.length ? frozen : listLop(con, namId);
   const linesByClass: Record<number, Dict[]> = {};
   for (const line of all(con, "SELECT * FROM cham_dong WHERE tuan_id=? ORDER BY lop_id,id", [tuanId])) {

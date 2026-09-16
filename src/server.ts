@@ -60,7 +60,7 @@ import {
   schoolCalendar,
   saveSchoolCalendar,
   reconcileWeekDates,
-  weekRoster,
+  frozenWeekClasses,
   sampleWeek,
   deleteSampleWeek,
 } from "./plan.ts";
@@ -315,7 +315,8 @@ function reportPage(
     week_start: String(query.week_start || ""),
   });
   const tuan = wf.tuan;
-  const lops = weekRoster(con, n, tuan?.id ? Number(tuan.id) : undefined);
+  const frozen = tuan?.id ? frozenWeekClasses(con, Number(tuan.id)) : [];
+  const lops = frozen.length ? frozen : listLop(con, n);
   const currentId = query.lop_id ? Number(query.lop_id) : Number(lops[0]?.id);
   const current = lops.find((lop) => Number(lop.id) === currentId);
   const reported: Record<string, string> = {};
@@ -381,7 +382,7 @@ app.get("/cham-tuan", (req, res) => {
     week_start: String(req.query.week_start || ""),
   });
   const tuan = wf.tuan;
-  const results = tuan?.id ? scoreWeek(con, Number(tuan.id)) : weekRoster(con, namId()).map((lop) => ({ ...lop, lop_id: Number(lop.id), lines: [] }));
+  const results = tuan?.id ? scoreWeek(con, Number(tuan.id)) : listLop(con, namId()).map((lop) => ({ ...lop, lop_id: Number(lop.id), lines: [] }));
   const lopId = req.query.lop_id ? Number(req.query.lop_id) : results[0]?.lop_id;
   const current = results.find((r) => r.lop_id === lopId);
   view(env, req, res, "cham.html", {
