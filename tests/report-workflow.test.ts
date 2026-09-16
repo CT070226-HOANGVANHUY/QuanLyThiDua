@@ -4,7 +4,7 @@ import { mkdtempSync, rmSync } from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
-import { connect, initDb, get, run, setActiveNam, transaction } from '../src/db.ts';
+import { connect, initDb, get, all, run, setActiveNam, transaction } from '../src/db.ts';
 import { initPlan, saveReport, saveChamTay, loadReport, deleteTieuChi, parseReport, scoreWeek, setTuanStatus } from '../src/plan.ts';
 import { initPeriods, periodTable } from '../src/periods.ts';
 import { feed, initConduct, savePenalty } from '../src/conduct.ts';
@@ -311,20 +311,46 @@ test('report parser preserves non-contiguous row ids and rejects malformed value
   } finally { db.close(); }
 });
 
-test('report revision prevents stale overwrite and submit validates confirmation fields', () => {
+test('report revision prevents stale overwrite and complete-class does not require bi_thu', () => {
   const db = calendarFixture();
   try {
+    assert.equal(get(db, "PRAGMA user_version")?.user_version, 7);
     run(db, "INSERT INTO lop(id,nam_hoc_id,ten,khoi,nhom,si_so) VALUES (1,1,'10A1',10,1,30)");
     const week = transaction(db, () => resolveWeekForWrite(db, 1, { week_start: '2026-09-11' }));
     const draft = parseReport(reportForm({ nghi_0_ho_ten: 'A' }), week);
     const saved = saveReport(db, 1, { tuan_id: Number(week.id) }, 1, 0, draft, 'save');
     assert.equal(saved.report.revision, 1);
     assert.throws(() => saveReport(db, 1, { tuan_id: Number(week.id) }, 1, 0, draft, 'save'), { status: 409 });
-    assert.throws(() => saveReport(db, 1, { tuan_id: Number(week.id) }, 1, 1, draft, 'submit'), { status: 400 });
-    const submitted = parseReport(reportForm({ bi_thu: 'Nguyễn Văn Bí thư', ngay_lap: '2026-09-13', ghi_chu_ktm: 'Không phát sinh' }), week);
-    const done = saveReport(db, 1, { tuan_id: Number(week.id) }, 1, 1, submitted, 'submit');
+    const incompleteHours = parseReport(reportForm({ gio_tong: '5' }), week);
+    assert.equal(Object.keys(incompleteHours.errors).length, 0);
+    assert.throws(() => saveReport(db, 1, { tuan_id: Number(week.id) }, 1, 1, incompleteHours, 'submit'), { status: 400 });
+    const done = saveReport(db, 1, { tuan_id: Number(week.id) }, 1, 1, draft, 'submit');
     assert.equal(done.report.trang_thai, 'da_gui');
     assert.equal(done.report.revision, 2);
+    assert.equal(done.report.bi_thu, '');
+    assert.equal(done.report.ngay_lap, '');
+    const fake = get(db, "SELECT id, score_key FROM tieu_chi WHERE nam_hoc_id=1 AND ma='phu_hieu_gia'");
+    assert.ok(fake);
+    const missingName = parseReport(reportForm({ vp_0_tieu_chi_id: String(fake.id), vp_0_ngay: '2026-09-11' }), week);
+    assert.ok(missingName.errors.vp_0_ho_ten);
+    const catalog = parseReport(reportForm({
+      vp_0_tieu_chi_id: String(fake.id),
+      vp_0_tap_the: '1',
+      vp_0_ngay: '2026-09-11',
+      vp_0_so_luong: '1',
+    }), week);
+    assert.equal(Object.keys(catalog.errors).length, 0);
+    saveReport(db, 1, { tuan_id: Number(week.id) }, 1, 2, catalog, 'submit');
+    const named = loadReport(db, Number(week.id), 1).sk.filter((row) => Number(row.tieu_chi_id) === Number(fake.id));
+    assert.equal(named.length, 1);
+    assert.equal(named[0].ho_ten, '');
+    assert.equal(Number(named[0].tap_the), 1);
+    assert.equal(named[0].nguon, 'tnkt');
+    assert.equal(named[0].loai, fake.score_key || 'vp');
+    const auto = all(db, `SELECT t.ma FROM cham_dong c JOIN tieu_chi t ON t.id=c.tieu_chi_id
+      WHERE c.tuan_id=? AND c.lop_id=? AND c.nguon='auto'`, [week.id, 1]);
+    assert.ok(auto.some((row) => row.ma === 'phu_hieu_gia'));
+    assert.equal(auto.filter((row) => row.ma === 'phu_hieu').length, 0);
   } finally { db.close(); }
 });
 

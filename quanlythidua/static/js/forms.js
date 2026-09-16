@@ -6,12 +6,29 @@
     phu_hieu: ["ho_ten", "ngay", "so_luong", "ghi_chu"],
     vp_khac: ["ho_ten", "ngay", "so_luong", "ghi_chu"],
     thai_do: ["ho_ten", "tiet_mon", "noi_dung", "ngay", "ghi_chu"],
+    vp: ["tieu_chi_id", "ho_ten", "ngay", "so_luong", "tap_the", "gvcn_phat_hien", "ghi_chu"],
   };
   const forms = [...document.querySelectorAll("form[data-dirty-guard]")];
   let dirty = false;
   const mark = () => {
     dirty = true;
     document.querySelectorAll("[data-save-state]").forEach((node) => node.textContent = "Chưa lưu");
+  };
+  const fieldControl = (prefix, index, field) => {
+    const name = `${prefix}_${index}_${field}`;
+    if (field === "tieu_chi_id") {
+      const options = document.getElementById("vp-tieu-chi-options")?.innerHTML || `<option value="">— Chọn tiêu chí —</option>`;
+      return `<select name="${name}">${options}</select>`;
+    }
+    if (field === "tap_the" || field === "gvcn_phat_hien") {
+      const label = field === "tap_the" ? "Tập thể" : "GVCN phát hiện";
+      return `<input type="checkbox" name="${name}" value="1" aria-label="${label}">`;
+    }
+    const type = field === "ngay" ? "date" : field === "so_luong" ? "number" : null;
+    const limits = type === "date" ? ` min="${document.querySelector("input[name=week_start]")?.value || ""}" max="${document.querySelector("input[name=ngay_lap]")?.max || ""}"` : "";
+    const attrs = type ? ` type="${type}"${type === "number" ? ' min="1" step="1"' : limits}` : "";
+    if (["ghi_chu", "noi_dung"].includes(field)) return `<textarea name="${name}"></textarea>`;
+    return `<input name="${name}"${attrs}>`;
   };
   for (const form of forms) {
     form.addEventListener("input", mark);
@@ -23,23 +40,16 @@
     if (add) {
       const prefix = add.dataset.addRow;
       const tbody = document.querySelector(`#tbl-${CSS.escape(prefix)} tbody`);
-      if (!tbody) return;
+      if (!tbody || !prefixes[prefix]) return;
       const indexes = [...tbody.querySelectorAll(`[name^="${prefix}_"]`)]
         .map((input) => Number(input.name.match(new RegExp(`^${prefix}_(\\d+)_`))?.[1]))
         .filter(Number.isFinite);
       const index = indexes.length ? Math.max(...indexes) + 1 : 0;
       const tr = document.createElement("tr");
-      tr.innerHTML = prefixes[prefix].map((field) => {
-        const type = field === "ngay" ? "date" : field === "so_luong" ? "number" : null;
-        const limits = type === "date" ? ` min="${document.querySelector('input[name=week_start]')?.value || ''}" max="${document.querySelector('input[name=ngay_lap]')?.max || ''}"` : "";
-        const attrs = type ? ` type="${type}"${type === "number" ? ' min="1" step="1"' : limits}` : "";
-        const control = ["ghi_chu", "noi_dung"].includes(field)
-          ? `<textarea name="${prefix}_${index}_${field}"></textarea>`
-          : `<input name="${prefix}_${index}_${field}"${attrs}>`;
-        return `<td>${control}</td>`;
-      }).join("") + `<td><button type="button" class="btn ghost sm" data-delete-row aria-label="Xóa dòng ${index + 1}">Xóa dòng</button></td>`;
+      tr.innerHTML = prefixes[prefix].map((field) => `<td>${fieldControl(prefix, index, field)}</td>`).join("")
+        + `<td><button type="button" class="btn ghost sm" data-delete-row aria-label="Xóa dòng ${index + 1}">Xóa dòng</button></td>`;
       tbody.appendChild(tr);
-      tr.querySelector("input,textarea")?.focus();
+      tr.querySelector("input,select,textarea")?.focus();
       mark();
       return;
     }
@@ -47,6 +57,21 @@
     if (remove) { remove.closest("tr")?.remove(); mark(); return; }
     const link = event.target.closest("a[href]");
     if (dirty && link && !confirm("Có thay đổi chưa lưu. Chọn OK để bỏ thay đổi, Cancel để ở lại.")) event.preventDefault();
+  });
+  document.addEventListener("keydown", (event) => {
+    const target = event.target;
+    if (!(target instanceof Element)) return;
+    const form = target.closest("form.report-form[data-dirty-guard]");
+    if (!form || !event.ctrlKey) return;
+    const key = event.key.toLowerCase();
+    const submitWith = (value) => {
+      const button = form.querySelector(`button[name=action][value="${value}"]`);
+      if (!(button instanceof HTMLButtonElement) || button.disabled) return;
+      event.preventDefault();
+      form.requestSubmit(button);
+    };
+    if (key === "s") submitWith("save");
+    else if (key === "enter") submitWith("submit");
   });
   addEventListener("beforeunload", (event) => { if (dirty) { event.preventDefault(); event.returnValue = ""; } });
 })();

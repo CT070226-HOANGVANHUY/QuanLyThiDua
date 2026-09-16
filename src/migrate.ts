@@ -136,8 +136,26 @@ function migrateV6(con: Db) {
   migrateCatalogV6(con);
 }
 
+const PAPER_EVENT_LOAI = ["di_muon", "trang_phuc", "phu_hieu", "vp_khac", "thai_do"] as const;
+
+export function ensureV7Columns(con: Db) {
+  if (!tableExists(con, "su_kien")) return;
+  addColumn(con, "su_kien", "tieu_chi_id", "INTEGER REFERENCES tieu_chi(id)");
+  addColumn(con, "su_kien", "tap_the", "INTEGER NOT NULL DEFAULT 0 CHECK(tap_the IN (0,1))");
+  addColumn(con, "su_kien", "gvcn_phat_hien", "INTEGER NOT NULL DEFAULT 0 CHECK(gvcn_phat_hien IN (0,1))");
+  addColumn(con, "su_kien", "nguon", "TEXT NOT NULL DEFAULT 'tnkt' CHECK(nguon IN ('giay','tnkt','tay'))");
+}
+
+function migrateV7(con: Db) {
+  ensureV7Columns(con);
+  if (!tableExists(con, "su_kien")) return;
+  const placeholders = PAPER_EVENT_LOAI.map(() => "?").join(",");
+  run(con, `UPDATE su_kien SET nguon='giay'
+    WHERE nguon='tnkt' AND tieu_chi_id IS NULL AND loai IN (${placeholders})`, [...PAPER_EVENT_LOAI]);
+}
+
 export function migrate(con: Db): void {
-  const steps: [number, (con: Db) => void][] = [[5, migrateV5], [6, migrateV6]];
+  const steps: [number, (con: Db) => void][] = [[5, migrateV5], [6, migrateV6], [7, migrateV7]];
   for (const [n, step] of steps) {
     if (userVersion(con) < n) {
       step(con);
@@ -146,4 +164,5 @@ export function migrate(con: Db): void {
   }
   ensureV5Columns(con);
   ensureYearFormula(con);
+  ensureV7Columns(con);
 }

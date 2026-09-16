@@ -331,15 +331,18 @@ function reportPage(
     nghi: submitted.parsed.nghi,
     sk: Object.entries(submitted.parsed.events).flatMap(([loai, rows]) => rows.map((row) => ({ ...row, loai }))),
   } : saved;
+  const isCatalog = (event: Dict) => event.tieu_chi_id != null && event.tieu_chi_id !== "";
   const sk: Record<string, Dict[]> = {};
-  for (const [loai] of LOAI_NN) sk[loai] = loaded.sk.filter((event) => event.loai === loai);
+  for (const [loai] of LOAI_NN) sk[loai] = loaded.sk.filter((event) => event.loai === loai && !isCatalog(event));
   view(env, req, res, "bao_cao_tuan.html", {
     ...ctx(), ...wf, active: "bc_tuan", filter_action: "/bao-cao-tuan",
     extra_q: current ? [["lop_id", String(current.id)]] : [], lops, current, reported,
     locked: locked(tuan) || Boolean(submitted?.recovery),
     status: loaded.bc ? (loaded.bc.trang_thai === "da_gui" ? "Đã hoàn tất" : "Nháp") : "Chưa nhập",
     bc: loaded.bc ?? {}, nghi: loaded.nghi, sk, loai_nn: LOAI_NN,
-    thai_do: loaded.sk.filter((event) => event.loai === "thai_do"),
+    thai_do: loaded.sk.filter((event) => event.loai === "thai_do" && !isCatalog(event)),
+    vp: loaded.sk.filter((event) => isCatalog(event) || event.loai === "vp"),
+    tieu_chi_nn: listTieuChi(con, n, true).filter((criterion) => criterion.nhom === "ne_nep"),
     errors: submitted?.parsed.errors ?? {}, error_summary: submitted?.message || "",
   });
 }

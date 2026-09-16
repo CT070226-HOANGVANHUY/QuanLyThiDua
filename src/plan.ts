@@ -122,7 +122,11 @@ CREATE TABLE IF NOT EXISTS su_kien (
   so_luong REAL NOT NULL DEFAULT 1,
   tiet_mon TEXT NOT NULL DEFAULT '',
   noi_dung TEXT NOT NULL DEFAULT '',
-  ghi_chu TEXT NOT NULL DEFAULT ''
+  ghi_chu TEXT NOT NULL DEFAULT '',
+  tieu_chi_id INTEGER REFERENCES tieu_chi(id),
+  tap_the INTEGER NOT NULL DEFAULT 0 CHECK(tap_the IN (0,1)),
+  gvcn_phat_hien INTEGER NOT NULL DEFAULT 0 CHECK(gvcn_phat_hien IN (0,1)),
+  nguon TEXT NOT NULL DEFAULT 'tnkt' CHECK(nguon IN ('giay','tnkt','tay'))
 );
 CREATE TABLE IF NOT EXISTS cham_dong (
   id INTEGER PRIMARY KEY,
@@ -231,7 +235,10 @@ export function initPlan(con: Db) {
   });
   for (const nam of all(con, "SELECT id FROM nam_hoc")) {
     for (const [ma, ten, nhom, diem, donVi] of SEED) {
-      const scoreKey = ma === "thai_do" ? "sdb_hoc_tap" : ma === "van_nghe" ? "cong_ne_nep" : [...NN_KEYS, ...GIO_KEYS, ...KTM_SCORE_KEYS, "ktm_5_6"].includes(ma) ? ma : null;
+      const scoreKey = ma === "thai_do" ? "sdb_hoc_tap"
+        : ma === "van_nghe" ? "cong_ne_nep"
+        : ma === "phu_hieu_gia" || ma === "phu_hieu_quen" ? "phu_hieu"
+        : [...NN_KEYS, ...GIO_KEYS, ...KTM_SCORE_KEYS, "ktm_5_6"].includes(ma) ? ma : null;
       run(con, `INSERT INTO tieu_chi(nam_hoc_id,ma,ten,nhom,diem,don_vi,ap_dung,score_key) VALUES (?,?,?,?,?,?,1,?)
         ON CONFLICT(nam_hoc_id,ma) DO NOTHING`, [nam.id, ma, ten, nhom, diem, donVi, scoreKey]);
     }
@@ -245,6 +252,7 @@ export function initPlan(con: Db) {
       AND NOT EXISTS(SELECT 1 FROM cham_dong WHERE cham_dong.tieu_chi_id=tieu_chi.id)
       AND NOT EXISTS(SELECT 1 FROM su_kien WHERE su_kien.tieu_chi_id=tieu_chi.id)`);
   }
+  run(con, "UPDATE tieu_chi SET score_key='phu_hieu' WHERE ma IN ('phu_hieu_quen','phu_hieu_gia') AND (score_key IS NULL OR score_key='')");
   migrate(con);
 }
 
@@ -616,6 +624,37 @@ function parsedRows(form: Record<string, string>, prefix: string, fields: string
   }).filter((row): row is ReportRow => Boolean(row));
 }
 
+function flag01(value: string | undefined) {
+  const raw = String(value ?? "").trim().toLowerCase();
+  return raw === "1" || raw === "on" || raw === "true" ? "1" : "0";
+}
+
+const VP_FIELDS = ["tieu_chi_id", "ho_ten", "ngay", "so_luong", "tap_the", "gvcn_phat_hien", "ghi_chu"];
+
+function parsedCatalogRows(form: Record<string, string>, week: Dict, errors: Record<string, string>) {
+  return indexed(form, "vp", VP_FIELDS).map((row) => {
+    const index = Number(row.__index);
+    delete row.__index;
+    const present = VP_FIELDS.some((field) => row[field]);
+    if (!present) return undefined;
+    row.tap_the = flag01(row.tap_the);
+    row.gvcn_phat_hien = flag01(row.gvcn_phat_hien);
+    if (row.tap_the !== "1" && !row.ho_ten) errors[`vp_${index}_ho_ten`] = "Cần nhập trường này.";
+    if (!row.tieu_chi_id) errors[`vp_${index}_tieu_chi_id`] = "Cần nhập trường này.";
+    else if (!/^\d+$/.test(row.tieu_chi_id) || Number(row.tieu_chi_id) < 1) {
+      errors[`vp_${index}_tieu_chi_id`] = "Tiêu chí không hợp lệ.";
+    }
+    if (row.ngay) row.ngay = reportDate(row.ngay, week, `vp_${index}_ngay`, errors);
+    if (!row.so_luong) row.so_luong = "1";
+    else {
+      const count = reportInteger(row.so_luong, `vp_${index}_so_luong`, errors);
+      if (count < 1) errors[`vp_${index}_so_luong`] = "Số lượng phải từ 1.";
+      row.so_luong = String(count);
+    }
+    return { ...row, index };
+  }).filter((row): row is ReportRow => Boolean(row));
+}
+
 export function parseReport(form: Record<string, string>, week: Dict): ParsedReport {
   const errors: Record<string, string> = {};
   const header = Object.fromEntries(REPORT_COUNTS.map((field) => [field, reportInteger(form[field], field, errors)])) as ParsedReport["header"];
@@ -631,6 +670,7 @@ export function parseReport(form: Record<string, string>, week: Dict): ParsedRep
     events[loai] = parsedRows(form, loai, ["ho_ten", "ngay", "so_luong", "ghi_chu"], ["ho_ten"], week, errors);
   }
   events.thai_do = parsedRows(form, "thai_do", ["ho_ten", "ngay", "tiet_mon", "noi_dung", "ghi_chu"], ["ho_ten", "noi_dung"], week, errors);
+  events.vp = parsedCatalogRows(form, week, errors);
   return { header, nghi, events, errors };
 }
 
@@ -698,8 +738,6 @@ export function saveReport(
     const classified = h.gio_tot + h.gio_kha + h.gio_tb + h.gio_yeu + h.gio_kem;
     if (action === "submit") {
       if (classified !== h.gio_tong && !h.ghi_chu_gio) throw new WorkflowError(400, "Cần ghi lý do cho số giờ chưa xếp loại.");
-      if (!h.bi_thu) throw new WorkflowError(400, "Cần nhập Bí thư chi đoàn trước khi gửi.");
-      if (!h.ngay_lap) throw new WorkflowError(400, "Cần nhập ngày lập trước khi gửi.");
     }
     const values = REPORT_COUNTS.map((field) => h[field]);
     let id: number;
@@ -720,8 +758,7 @@ export function saveReport(
       run(con, "INSERT INTO nghi_hoc(bao_cao_id,ho_ten,ngay,ghi_chu) VALUES (?,?,?,?)", [id, row.ho_ten, row.ngay, row.ghi_chu]);
     }
     for (const [loai, rows] of Object.entries(parsed.events)) for (const row of rows) {
-      run(con, "INSERT INTO su_kien(bao_cao_id,loai,ho_ten,ngay,so_luong,tiet_mon,noi_dung,ghi_chu) VALUES (?,?,?,?,?,?,?,?)",
-        [id, loai, row.ho_ten || "", row.ngay || "", Number(row.so_luong || 1), row.tiet_mon || "", row.noi_dung || "", row.ghi_chu || ""]);
+      insertSuKien(con, namId, id, loai, row);
     }
     rebuildAuto(con, Number(week.id), lopId);
     run(con, "UPDATE tuan SET revision=revision+1 WHERE id=?", [week.id]);
@@ -746,6 +783,32 @@ function rule(con: Db, namId: number, ma: string) {
   return get(con, "SELECT * FROM tieu_chi WHERE nam_hoc_id=? AND ma=? AND ap_dung=1", [namId, ma]);
 }
 
+function catalogEvent(row: Dict) {
+  const id = row.tieu_chi_id;
+  return id != null && id !== "" && Number(id) > 0;
+}
+
+function insertSuKien(con: Db, namId: number, baoCaoId: number, loai: string, row: ReportRow) {
+  const tapThe = flag01(row.tap_the) === "1" ? 1 : 0;
+  const gvcn = flag01(row.gvcn_phat_hien) === "1" ? 1 : 0;
+  const hoTen = row.ho_ten || "";
+  if (loai === "vp") {
+    const tieuChiId = Number(row.tieu_chi_id);
+    const criterion = get(con, "SELECT * FROM tieu_chi WHERE id=? AND nam_hoc_id=? AND ap_dung=1", [tieuChiId, namId]);
+    if (!criterion) throw new WorkflowError(400, "Tiêu chí không hợp lệ.");
+    const storedLoai = String(criterion.score_key || "vp");
+    run(con, `INSERT INTO su_kien(bao_cao_id,loai,ho_ten,ngay,so_luong,tiet_mon,noi_dung,ghi_chu,tieu_chi_id,tap_the,gvcn_phat_hien,nguon)
+      VALUES (?,?,?,?,?,?,?,?,?,?,?,'tnkt')`,
+      [baoCaoId, storedLoai, hoTen, row.ngay || "", Number(row.so_luong || 1), row.tiet_mon || "", row.noi_dung || "",
+        row.ghi_chu || "", tieuChiId, tapThe, gvcn]);
+    return;
+  }
+  run(con, `INSERT INTO su_kien(bao_cao_id,loai,ho_ten,ngay,so_luong,tiet_mon,noi_dung,ghi_chu,tieu_chi_id,tap_the,gvcn_phat_hien,nguon)
+    VALUES (?,?,?,?,?,?,?,?,NULL,?,?,'giay')`,
+    [baoCaoId, loai, hoTen, row.ngay || "", Number(row.so_luong || 1), row.tiet_mon || "", row.noi_dung || "",
+      row.ghi_chu || "", tapThe, gvcn]);
+}
+
 function addAuto(con: Db, tuanId: number, lopId: number, tc: Dict, sl: number) {
   if (!sl) return;
   const thanh = sl * Number(tc.diem);
@@ -762,10 +825,21 @@ export function rebuildAuto(con: Db, tuanId: number, lopId: number) {
   if (!bc) return;
   const nghiRule = rule(con, namId, "nghi_hoc");
   if (nghiRule) addAuto(con, tuanId, lopId, nghiRule, nghi.length);
+  const byCriterion: Record<number, number> = {};
   const byLoai: Record<string, number> = {};
   for (const event of sk) {
-    const loai = String(event.loai);
-    byLoai[loai] = (byLoai[loai] ?? 0) + Number(event.so_luong || 1);
+    const sl = Number(event.so_luong || 1);
+    if (catalogEvent(event)) {
+      const id = Number(event.tieu_chi_id);
+      byCriterion[id] = (byCriterion[id] ?? 0) + sl;
+    } else {
+      const loai = String(event.loai);
+      byLoai[loai] = (byLoai[loai] ?? 0) + sl;
+    }
+  }
+  for (const [id, sl] of Object.entries(byCriterion)) {
+    const criterion = get(con, "SELECT * FROM tieu_chi WHERE id=?", [Number(id)]);
+    if (criterion) addAuto(con, tuanId, lopId, criterion, sl);
   }
   for (const loai of Object.keys(byLoai)) {
     const criterion = rule(con, namId, loai);
