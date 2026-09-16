@@ -67,6 +67,22 @@
     </form>
   </div>
   <div class="card">
+    <h2>Hội học</h2>
+    <form class="form-grid" method="get" action="/xuat/bao-cao">
+      <input type="hidden" name="model" value="monthly">
+      <input type="hidden" name="scope" value="hoi_hoc" data-milestone-scope>
+      <div class="field"><label>Đợt</label>
+        <select name="key" data-milestone-key>
+          {% for moc in hoi_hoc or [] %}<option value="{{ moc.id }}" data-scope="hoi_hoc">{{ moc.ten }}</option>{% endfor %}
+          {% if tam_ket %}<option value="{{ tam_ket.id }}" data-scope="tam_ket">{{ tam_ket.ten }}</option>{% endif %}
+        </select>
+      </div>
+      <div class="field"><label>Dữ liệu</label><select name="view"><option value="official">Chính thức</option><option value="preview">Xem trước</option></select></div>
+      <div class="field"><label>Định dạng</label><select name="format"><option value="xlsx">Excel</option><option value="docx">Word</option><option value="print">Bản in</option></select></div>
+      <div class="toolbar"><button class="btn-gold" type="submit">Tạo báo cáo</button></div>
+    </form>
+  </div>
+  <div class="card">
     <h2>Cả năm</h2>
     <form class="form-grid" method="get" action="/xuat/bao-cao">
       <input type="hidden" name="scope" value="nam"><input type="hidden" name="key" value="all">
@@ -90,5 +106,16 @@
   }
   scope.addEventListener("change", syncPeriodKeys);
   syncPeriodKeys();
+  const milestoneKey = document.querySelector("[data-milestone-key]");
+  const milestoneScope = document.querySelector("[data-milestone-scope]");
+  function syncMilestoneScope() {
+    if (!milestoneKey || !milestoneScope) return;
+    const selected = milestoneKey.selectedOptions[0];
+    if (selected && selected.dataset.scope) milestoneScope.value = selected.dataset.scope;
+  }
+  if (milestoneKey) {
+    milestoneKey.addEventListener("change", syncMilestoneScope);
+    syncMilestoneScope();
+  }
 </script>
 {% endblock %}

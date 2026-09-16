@@ -5,10 +5,16 @@ import { addNamHoc, all, get, initDb, run, setActiveNam, tableExists } from "../
 import { migrate } from "../src/migrate.ts";
 import { initPlan } from "../src/plan.ts";
 import {
+  createTamKet,
+  khenMilestoneKeys,
   milestoneTable,
+  milestoneWeeks,
+  parseMilestoneKy,
+  saveMilestoneEntries,
   saveMilestoneWeeks,
   suggestedHoiHocWeeks,
 } from "../src/milestones.ts";
+import { reportTables } from "../src/report-export.ts";
 
 process.env.THIDUA_EMPTY_DB = "1";
 
@@ -129,6 +135,8 @@ test("addNamHoc inserts empty hội học rows and copyFrom does not copy weeks 
     const ms = Number(get(db, "SELECT id FROM milestone WHERE nam_hoc_id=? AND ma='20-11'", [namId])!.id);
     saveMilestoneWeeks(db, namId, ms, ["2026-10-30", "2026-11-06", "2026-11-13", "2026-11-20"]);
     assert.equal(get(db, "SELECT COUNT(*) AS n FROM milestone_week WHERE milestone_id=?", [ms])?.n, 4);
+    createTamKet(db, namId, "union");
+    assert.ok(get(db, "SELECT id FROM milestone WHERE nam_hoc_id=? AND ma='tam_ket'", [namId]));
     const copied = Number(addNamHoc(db, "2027-2028", namId));
     const copyRows = all(db, "SELECT ma, loai FROM milestone WHERE nam_hoc_id=? ORDER BY ma", [copied]);
     assert.deepEqual(copyRows.map((r) => r.ma), ["20-11", "26-3"]);
@@ -259,12 +267,164 @@ test("saving hội học weeks syncs tam_ket nguon_tuan=union", () => {
     setActiveNam(db, namId);
     const nov = Number(get(db, "SELECT id FROM milestone WHERE nam_hoc_id=? AND ma='20-11'", [namId])!.id);
     const mar = Number(get(db, "SELECT id FROM milestone WHERE nam_hoc_id=? AND ma='26-3'", [namId])!.id);
-    run(db, `INSERT INTO milestone(nam_hoc_id,loai,ma,ten,nguon_tuan)
-      VALUES (?,'tam_ket','tam_ket','8 tuần','union')`, [namId]);
-    const tam = Number(get(db, "SELECT id FROM milestone WHERE nam_hoc_id=? AND ma='tam_ket'", [namId])!.id);
+    assert.equal(get(db, "SELECT id FROM milestone WHERE nam_hoc_id=? AND ma='tam_ket'", [namId]), undefined);
+    const tam = createTamKet(db, namId, "union");
+    assert.equal(get(db, "SELECT COUNT(*) AS n FROM milestone_week WHERE milestone_id=?", [tam])?.n, 0);
     saveMilestoneWeeks(db, namId, nov, ["2026-10-30", "2026-11-06", "2026-11-13", "2026-11-20"]);
     assert.equal(get(db, "SELECT COUNT(*) AS n FROM milestone_week WHERE milestone_id=?", [tam])?.n, 4);
     saveMilestoneWeeks(db, namId, mar, ["2027-02-26", "2027-03-05", "2027-03-12", "2027-03-19"]);
     assert.equal(get(db, "SELECT COUNT(*) AS n FROM milestone_week WHERE milestone_id=?", [tam])?.n, 8);
+    saveMilestoneWeeks(db, namId, nov, ["2026-11-06", "2026-11-13", "2026-11-20", "2026-11-27"]);
+    const unionStarts = all(db, `SELECT t.ngay_bd FROM milestone_week mw JOIN tuan t ON t.id=mw.tuan_id
+      WHERE mw.milestone_id=? ORDER BY mw.thu_tu`, [tam]).map((row) => String(row.ngay_bd));
+    assert.equal(unionStarts.length, 8);
+    assert.ok(!unionStarts.includes("2026-10-30"));
+    assert.ok(unionStarts.includes("2026-11-27"));
+    assert.ok(unionStarts.includes("2027-03-19"));
+    assert.throws(() => createTamKet(db, namId, "union"), { status: 400 });
+  } finally { db.close(); }
+});
+
+test("hội học ranking has 4 XT columns + tong + xt_dot + kỷ luật/khen like 20-11-2025", () => {
+  const db = emptyDb();
+  try {
+    const namId = Number(addNamHoc(db, "2026-2027"));
+    setActiveNam(db, namId);
+    run(db, `INSERT INTO lop(nam_hoc_id,ten,khoi,nhom,si_so,thu_tu,loai_hinh,ap_dung) VALUES
+      (?,'A',10,1,40,1,'chon',1),(?,'B',10,1,40,2,'chon',1)`, [namId, namId]);
+    const a = Number(get(db, "SELECT id FROM lop WHERE nam_hoc_id=? AND ten='A'", [namId])!.id);
+    const b = Number(get(db, "SELECT id FROM lop WHERE nam_hoc_id=? AND ten='B'", [namId])!.id);
+    const ms = Number(get(db, "SELECT id FROM milestone WHERE nam_hoc_id=? AND ma='20-11'", [namId])!.id);
+    const starts = ["2026-10-30", "2026-11-06", "2026-11-13", "2026-11-20"];
+    const ranks = [
+      [{ lop_id: a, xt: 3 }, { lop_id: b, xt: 1 }],
+      [{ lop_id: a, xt: 1 }, { lop_id: b, xt: 7 }],
+      [{ lop_id: a, xt: 11 }, { lop_id: b, xt: 10 }],
+      [{ lop_id: a, xt: 1 }, { lop_id: b, xt: 2 }],
+    ];
+    starts.forEach((start, i) => {
+      const id = publishWeek(db, namId, i + 1, start, ranks[i]);
+      run(db, "INSERT INTO milestone_week(milestone_id,tuan_id,thu_tu) VALUES (?,?,?)", [ms, id, i + 1]);
+    });
+    const table = milestoneTable(db, namId, ms, "official");
+    const weekCols = milestoneWeeks(db, ms).map((week) => `w_${week.id}`);
+    assert.equal(weekCols.length, 4);
+    const colKeys = (table.columns as [string, string][]).map(([key]) => key);
+    for (const key of [...weekCols, "ten", "tong", "xt_dot", "discipline", "reward"]) {
+      assert.ok(colKeys.includes(key), key);
+    }
+    const rowA = table.rows.find((r) => r.ten === "A")!;
+    const rowB = table.rows.find((r) => r.ten === "B")!;
+    assert.deepEqual(weekCols.map((key) => rowA[key]), [3, 1, 11, 1]);
+    assert.deepEqual(weekCols.map((key) => rowB[key]), [1, 7, 10, 2]);
+    assert.equal(rowA.tong, 16);
+    assert.equal(rowB.tong, 20);
+    assert.equal(rowA.xt_dot, 1);
+    assert.equal(rowB.xt_dot, 2);
+    saveMilestoneEntries(db, namId, ms, {
+      [`discipline_${a}`]: "Khiển trách",
+      [`reward_${a}`]: "Giấy khen",
+      [`notes_${a}`]: "Ghi chú A",
+    });
+    const noted = milestoneTable(db, namId, ms, "official").rows.find((r) => r.ten === "A")!;
+    assert.equal(noted.discipline, "Khiển trách");
+    assert.equal(noted.reward, "Giấy khen");
+    assert.equal(noted.notes, "Ghi chú A");
+    assert.equal(tableExists(db, "period_entry") ? Number(get(db, "SELECT COUNT(*) AS n FROM period_entry")?.n) : 0, 0);
+  } finally { db.close(); }
+});
+
+test("tam_ket SUM 8 xt_chung, not xt_dot of two hội học", () => {
+  const db = emptyDb();
+  try {
+    const namId = Number(addNamHoc(db, "2026-2027"));
+    setActiveNam(db, namId);
+    run(db, `INSERT INTO lop(nam_hoc_id,ten,khoi,nhom,si_so,thu_tu,loai_hinh,ap_dung) VALUES
+      (?,'A',10,1,40,1,'chon',1),(?,'B',10,1,40,2,'chon',1)`, [namId, namId]);
+    const a = Number(get(db, "SELECT id FROM lop WHERE nam_hoc_id=? AND ten='A'", [namId])!.id);
+    const b = Number(get(db, "SELECT id FROM lop WHERE nam_hoc_id=? AND ten='B'", [namId])!.id);
+    const nov = Number(get(db, "SELECT id FROM milestone WHERE nam_hoc_id=? AND ma='20-11'", [namId])!.id);
+    const mar = Number(get(db, "SELECT id FROM milestone WHERE nam_hoc_id=? AND ma='26-3'", [namId])!.id);
+    const novStarts = ["2026-10-30", "2026-11-06", "2026-11-13", "2026-11-20"];
+    const marStarts = ["2027-02-26", "2027-03-05", "2027-03-12", "2027-03-19"];
+    const novRanks = [
+      [{ lop_id: a, xt: 3 }, { lop_id: b, xt: 1 }],
+      [{ lop_id: a, xt: 1 }, { lop_id: b, xt: 7 }],
+      [{ lop_id: a, xt: 11 }, { lop_id: b, xt: 10 }],
+      [{ lop_id: a, xt: 1 }, { lop_id: b, xt: 2 }],
+    ];
+    const marRanks = [
+      [{ lop_id: a, xt: 5 }, { lop_id: b, xt: 4 }],
+      [{ lop_id: a, xt: 8 }, { lop_id: b, xt: 4 }],
+      [{ lop_id: a, xt: 1 }, { lop_id: b, xt: 2 }],
+      [{ lop_id: a, xt: 2 }, { lop_id: b, xt: 1 }],
+    ];
+    novStarts.forEach((start, i) => {
+      const id = publishWeek(db, namId, i + 1, start, novRanks[i]);
+      run(db, "INSERT INTO milestone_week(milestone_id,tuan_id,thu_tu) VALUES (?,?,?)", [nov, id, i + 1]);
+    });
+    marStarts.forEach((start, i) => {
+      const id = publishWeek(db, namId, i + 11, start, marRanks[i]);
+      run(db, "INSERT INTO milestone_week(milestone_id,tuan_id,thu_tu) VALUES (?,?,?)", [mar, id, i + 1]);
+    });
+    const hoiNov = milestoneTable(db, namId, nov, "official");
+    const hoiMar = milestoneTable(db, namId, mar, "official");
+    assert.equal(hoiNov.rows.find((r) => r.ten === "A")!.xt_dot, 1);
+    assert.equal(hoiNov.rows.find((r) => r.ten === "B")!.xt_dot, 2);
+    assert.equal(hoiMar.rows.find((r) => r.ten === "A")!.xt_dot, 2);
+    assert.equal(hoiMar.rows.find((r) => r.ten === "B")!.xt_dot, 1);
+    const tam = createTamKet(db, namId, "union");
+    const table = milestoneTable(db, namId, tam, "official");
+    assert.equal(milestoneWeeks(db, tam).length, 8);
+    const rowA = table.rows.find((r) => r.ten === "A")!;
+    const rowB = table.rows.find((r) => r.ten === "B")!;
+    assert.equal(rowA.complete_count, 8);
+    assert.equal(rowA.tong, 32);
+    assert.equal(rowB.tong, 31);
+    assert.equal(rowA.xt_dot, 2);
+    assert.equal(rowB.xt_dot, 1);
+    assert.notEqual(rowA.tong, Number(hoiNov.rows.find((r) => r.ten === "A")!.xt_dot)
+      + Number(hoiMar.rows.find((r) => r.ten === "A")!.xt_dot));
+  } finally { db.close(); }
+});
+
+test("/khen hoi_hoc and tam_ket keys use milestone_entry; export scopes hoi_hoc/tam_ket", () => {
+  const db = emptyDb();
+  try {
+    const namId = Number(addNamHoc(db, "2026-2027"));
+    setActiveNam(db, namId);
+    run(db, `INSERT INTO lop(nam_hoc_id,ten,khoi,nhom,si_so,thu_tu,loai_hinh,ap_dung) VALUES
+      (?,'A',10,1,40,1,'chon',1),(?,'B',10,1,40,2,'chon',1)`, [namId, namId]);
+    const a = Number(get(db, "SELECT id FROM lop WHERE nam_hoc_id=? AND ten='A'", [namId])!.id);
+    const b = Number(get(db, "SELECT id FROM lop WHERE nam_hoc_id=? AND ten='B'", [namId])!.id);
+    const ms = Number(get(db, "SELECT id FROM milestone WHERE nam_hoc_id=? AND ma='20-11'", [namId])!.id);
+    const starts = ["2026-10-30", "2026-11-06", "2026-11-13", "2026-11-20"];
+    starts.forEach((start, i) => {
+      const id = publishWeek(db, namId, i + 1, start, [{ lop_id: a, xt: i + 1 }, { lop_id: b, xt: i + 2 }]);
+      run(db, "INSERT INTO milestone_week(milestone_id,tuan_id,thu_tu) VALUES (?,?,?)", [ms, id, i + 1]);
+    });
+    const keys = khenMilestoneKeys(db, namId);
+    assert.deepEqual(keys.map(([key]) => key.split(":")[0]), ["hoi_hoc", "hoi_hoc"]);
+    assert.deepEqual(parseMilestoneKy(`hoi_hoc:${ms}`), { loai: "hoi_hoc", id: ms });
+    saveMilestoneEntries(db, namId, ms, { [`kq_${a}`]: "Khen hội học", [`gc_${a}`]: "Ghi chú khen" });
+    const row = milestoneTable(db, namId, ms, "official").rows.find((r) => r.ten === "A")!;
+    assert.equal(row.reward, "Khen hội học");
+    assert.equal(row.notes, "Ghi chú khen");
+    assert.equal(get(db, "SELECT COUNT(*) AS n FROM khen_thuong")?.n ?? 0, 0);
+    const exported = reportTables(db, namId, {
+      scope: "hoi_hoc", key: String(ms), model: "monthly", view: "official", cut: "school",
+    });
+    assert.equal(exported[0].rows.find((r) => r.ten === "A")!.tong, 10);
+    assert.equal(exported[0].rows.find((r) => r.ten === "A")!.reward, "Khen hội học");
+    const tam = createTamKet(db, namId, "union");
+    assert.ok(khenMilestoneKeys(db, namId).some(([key]) => key === `tam_ket:${tam}`));
+    saveMilestoneEntries(db, namId, tam, { [`kq_${a}`]: "Khen 8 tuần" });
+    const tamTable = reportTables(db, namId, {
+      scope: "tam_ket", key: String(tam), model: "monthly", view: "official", cut: "school",
+    });
+    assert.equal(tamTable[0].rows.find((r) => r.ten === "A")!.reward, "Khen 8 tuần");
+    assert.throws(() => reportTables(db, namId, {
+      scope: "loi_hs" as never, key: "1", model: "monthly", view: "official", cut: "school",
+    }), /Phạm vi xuất không hợp lệ/);
   } finally { db.close(); }
 });

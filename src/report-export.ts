@@ -1,11 +1,14 @@
 import { getTuan, requireOwned, WorkflowError, type Db, type Dict } from "./db.ts";
 import { HT_GIO_COLS, HT_KTM_COLS, NN_COLS } from "./scoring.ts";
+import { getMilestone, milestoneTable } from "./milestones.ts";
 import { periodKeys, periodTable } from "./periods.ts";
 import { scoreWeek, type ClassWeek } from "./plan.ts";
 import type { Table } from "./workbook-export.ts";
 
+export type ExportScope = "tuan" | "thang" | "nua" | "hk" | "nam" | "hoi_hoc" | "tam_ket";
+
 export type ExportRequest = {
-  scope: "tuan" | "thang" | "nua" | "hk" | "nam";
+  scope: ExportScope;
   key: string;
   model: string;
   view: "official" | "preview";
@@ -13,6 +16,8 @@ export type ExportRequest = {
   nhom?: number;
   lop_id?: number;
 };
+
+const EXPORT_SCOPES: ExportScope[] = ["tuan", "thang", "nua", "hk", "nam", "hoi_hoc", "tam_ket"];
 
 function cutRows(rows: Dict[], request: ExportRequest) {
   if (request.cut === "class") {
@@ -82,10 +87,25 @@ function weekTables(con: Db, namId: number, request: ExportRequest): Table[] {
   ];
 }
 
+function milestoneTables(con: Db, namId: number, request: ExportRequest): Table[] {
+  const id = Number(request.key);
+  if (!Number.isSafeInteger(id) || id < 1) throw new WorkflowError(400, "Kỳ xuất không hợp lệ.");
+  const ms = getMilestone(con, namId, id);
+  if (!ms || String(ms.loai) !== request.scope) throw new WorkflowError(400, "Kỳ xuất không hợp lệ.");
+  const table = milestoneTable(con, namId, id, request.view) as Table;
+  if (request.view === "official" && table.rows.some((row) => row.xt_dot == null)) {
+    throw new WorkflowError(409, "Kỳ chính thức còn thiếu dữ liệu.");
+  }
+  return [{ ...table, rows: cutRows(table.rows, request) }];
+}
+
 export function reportTables(con: Db, namId: number, request: ExportRequest): Table[] {
-  if (!["school", "group", "class"].includes(request.cut)) throw new WorkflowError(400, "Phạm vi xuất không hợp lệ.");
+  if (!EXPORT_SCOPES.includes(request.scope) || !["school", "group", "class"].includes(request.cut)) {
+    throw new WorkflowError(400, "Phạm vi xuất không hợp lệ.");
+  }
   if (request.cut === "class" && request.lop_id) requireOwned(con, "lop", request.lop_id, namId);
   if (request.scope === "tuan") return weekTables(con, namId, request);
+  if (request.scope === "hoi_hoc" || request.scope === "tam_ket") return milestoneTables(con, namId, request);
   if (!periodKeys(con, namId, request.scope, request.model).some(([key]) => key === request.key)) {
     throw new WorkflowError(400, "Kỳ xuất không hợp lệ.");
   }

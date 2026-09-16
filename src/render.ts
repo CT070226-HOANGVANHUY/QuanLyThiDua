@@ -17,6 +17,7 @@ const ROUTES: Record<string, string> = {
   cham_tuan: "/cham-tuan",
   chot_tuan: "/chot-tuan",
   khen: "/khen",
+  hoi_hoc: "/hoi-hoc",
   tieu_chi: "/tieu-chi",
   luu_tieu_chi: "/tieu-chi/luu",
   xoa_tieu_chi: "/tieu-chi/:id/xoa",

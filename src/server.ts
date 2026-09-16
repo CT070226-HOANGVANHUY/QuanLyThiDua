@@ -105,7 +105,19 @@ import { buildClassReport, classReportFilename } from "./report-data.ts";
 import { reportTables, reportFilename, type ExportRequest } from "./report-export.ts";
 import { violationFilename, violationTables } from "./violation-export.ts";
 import { banInFilename, banInTables, banInWorkbook } from "./ban-in-export.ts";
-import { namHocMilestoneContext, saveMilestoneWeeks } from "./milestones.ts";
+import {
+  createTamKet,
+  getMilestone,
+  getTamKet,
+  khenMilestoneKeys,
+  listMilestones,
+  milestoneTable,
+  namHocMilestoneContext,
+  parseMilestoneKy,
+  saveMilestoneActivity,
+  saveMilestoneEntries,
+  saveMilestoneWeeks,
+} from "./milestones.ts";
 import { createEnv, urlFor, view } from "./render.ts";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
@@ -143,7 +155,14 @@ function namId() {
   return Number(n.id);
 }
 function ctx() {
-  return { nam: nam({} as express.Request), nam_hocs: listNamHoc(con) };
+  const n = nam({} as express.Request);
+  const tam = n ? getTamKet(con, Number(n.id)) : undefined;
+  return {
+    nam: n,
+    nam_hocs: listNamHoc(con),
+    show_tam_ket: Boolean(tam),
+    tam_ket_id: tam ? Number(tam.id) : 0,
+  };
 }
 function displayedWeekNumber(calendarStart: string, weekStart: unknown, fallback: unknown) {
   if (!calendarStart || !weekStart) return Number(fallback);
@@ -329,6 +348,50 @@ app.post("/nam-hoc/moc", (req, res) => {
   flash(res, "Đã lưu tuần hội học");
   res.redirect("/nam-hoc");
 });
+app.post("/nam-hoc/tam-ket", (req, res) => {
+  const n = postedNam(req);
+  createTamKet(con, n, form(req).nguon_tuan || "union");
+  flash(res, "Đã tạo mốc 8 tuần");
+  res.redirect("/nam-hoc");
+});
+
+app.get("/hoi-hoc", (req, res) => {
+  const n = namId();
+  const hoi = listMilestones(con, n, "hoi_hoc");
+  const tam = getTamKet(con, n);
+  const milestones = tam ? [...hoi, tam] : hoi;
+  if (!milestones.length) throw new WorkflowError(404, "Chưa có mốc hội học.");
+  const requested = req.query.milestone_id ? Number(req.query.milestone_id) : Number(milestones[0].id);
+  const current = milestones.find((ms) => Number(ms.id) === requested);
+  if (!current) throw new WorkflowError(404, "Không tìm thấy mốc trong năm học này.");
+  const resultView = String(req.query.view || "official") === "preview" ? "preview" : "official";
+  view(env, req, res, "hoi_hoc.html", {
+    ...ctx(),
+    active: String(current.loai) === "tam_ket" ? "tam_ket" : "hoi_hoc",
+    table: milestoneTable(con, n, Number(current.id), resultView),
+    resultView,
+    milestones,
+    milestone_id: Number(current.id),
+  });
+});
+app.post("/hoi-hoc/ghi-chu", (req, res) => {
+  const f = form(req);
+  const n = postedNam(req);
+  const milestoneId = Number(f.milestone_id);
+  const ms = getMilestone(con, n, milestoneId);
+  if (!ms) throw new WorkflowError(404, "Không tìm thấy mốc trong năm học này.");
+  transaction(con, () => {
+    saveMilestoneEntries(con, n, milestoneId, f);
+    if (String(ms.loai) === "hoi_hoc" && yearFormulaOf(con, n).hoi_hoc_double === "hdtt_only") {
+      saveMilestoneActivity(con, n, milestoneId, f);
+    }
+  });
+  flash(res, "Đã lưu kỷ luật, khen thưởng hội học.");
+  res.redirect(`/hoi-hoc?${new URLSearchParams({
+    milestone_id: String(milestoneId),
+    view: f.view || "official",
+  })}`);
+});
 
 function reportPage(
   req: express.Request,
@@ -470,50 +533,84 @@ app.post("/chot-tuan", (req, res) => {
 });
 
 app.get("/khen", (req, res) => {
-  const calendar = schoolCalendar(con, namId());
-  const tuans = listTuan(con, namId());
+  const n = namId();
+  const calendar = schoolCalendar(con, n);
+  const tuans = listTuan(con, n);
   const kys: [string, string][] = [
     ...tuans.map((t) => {
       const no = Number(t.calendar_no) || displayedWeekNumber(calendar.ngay_bd, t.ngay_bd, t.so_tuan);
       const dates = t.ngay_bd && t.ngay_kt ? ` · ${t.ngay_bd} → ${t.ngay_kt}` : "";
       return [`tuan:${t.id}`, `Tuần ${no}${dates}`] as [string, string];
     }),
+    ...khenMilestoneKeys(con, n),
     ["hk:1", "Học kỳ I"],
     ["hk:2", "Học kỳ II"],
     ["nam", "Cả năm"],
   ];
   const ky = String(req.query.ky || kys[0]?.[0] || "nam");
-  let rows: { lop_id: number; ten: string; hang: number; tong: number }[] = [];
-  if (ky.startsWith("tuan:")) rows = scoreWeek(con, Number(ky.slice(5)));
-  else if (ky === "hk:1" || ky === "hk:2") {
-    const table = periodTable(con, namId(), "hk", ky.slice(3), "monthly", "official");
-    rows = (table.rows as Dict[]).map((row) => ({ lop_id: Number(row.lop_id), ten: String(row.ten), hang: Number(row.xt), tong: Number(row.total) }));
+  const milestoneKy = parseMilestoneKy(ky);
+  let rows: { lop_id: number; ten: string; hang: number | null; tong: number | null; ket_qua: string; ghi_chu: string }[] = [];
+  if (milestoneKy) {
+    const ms = getMilestone(con, n, milestoneKy.id);
+    if (!ms || String(ms.loai) !== milestoneKy.loai) throw new WorkflowError(400, "Kỳ khen thưởng không hợp lệ.");
+    const table = milestoneTable(con, n, milestoneKy.id, "official");
+    rows = (table.rows as Dict[]).map((row) => ({
+      lop_id: Number(row.lop_id),
+      ten: String(row.ten),
+      hang: row.xt_dot == null ? null : Number(row.xt_dot),
+      tong: row.tong == null ? null : Number(row.tong),
+      ket_qua: String(row.reward ?? ""),
+      ghi_chu: String(row.notes ?? ""),
+    }));
   } else {
-    const table = periodTable(con, namId(), "nam", "all", "monthly", "official");
-    rows = (table.rows as Dict[]).map((row) => ({ lop_id: Number(row.lop_id), ten: String(row.ten), hang: Number(row.xt), tong: Number(row.total) }));
+    if (ky.startsWith("tuan:")) rows = scoreWeek(con, Number(ky.slice(5))).map((it) => ({
+      lop_id: it.lop_id, ten: it.ten, hang: it.xt_chung, tong: it.tong_xt, ket_qua: "", ghi_chu: "",
+    }));
+    else if (ky === "hk:1" || ky === "hk:2") {
+      const table = periodTable(con, n, "hk", ky.slice(3), "monthly", "official");
+      rows = (table.rows as Dict[]).map((row) => ({
+        lop_id: Number(row.lop_id), ten: String(row.ten), hang: row.xt == null ? null : Number(row.xt),
+        tong: row.total == null ? null : Number(row.total), ket_qua: "", ghi_chu: "",
+      }));
+    } else {
+      const table = periodTable(con, n, "nam", "all", "monthly", "official");
+      rows = (table.rows as Dict[]).map((row) => ({
+        lop_id: Number(row.lop_id), ten: String(row.ten), hang: row.xt == null ? null : Number(row.xt),
+        tong: row.total == null ? null : Number(row.total), ket_qua: "", ghi_chu: "",
+      }));
+    }
+    const kh = listKhen(con, n, ky);
+    rows = rows.map((it) => ({ ...it, ket_qua: kh[it.lop_id]?.ket_qua ?? "", ghi_chu: kh[it.lop_id]?.ghi_chu ?? "" }));
   }
-  const kh = listKhen(con, namId(), ky);
   view(env, req, res, "khen.html", {
     ...ctx(),
     active: "khen",
     ky,
     kys,
-    rows: rows.map((it) => ({ ...it, ket_qua: kh[it.lop_id]?.ket_qua ?? "", ghi_chu: kh[it.lop_id]?.ghi_chu ?? "" })),
+    rows,
+    milestone_khen: Boolean(milestoneKy),
   });
 });
 app.post("/khen", (req, res) => {
   const f = form(req);
   const ky = f.ky;
   const n = postedNam(req);
+  const milestoneKy = parseMilestoneKy(ky);
   transaction(con, () => {
     requireActiveYear(con, n);
-    if (ky.startsWith("tuan:")) requireOwned(con, "tuan", Number(ky.slice(5)), n);
-    for (const key of Object.keys(f)) {
-      const match = /^(?:kq|gc)_(.+)$/.exec(key);
-      if (match) requireOwned(con, "lop", Number(match[1]), n);
-    }
-    for (const lop of listLop(con, n)) {
-      saveKhen(con, n, ky, Number(lop.id), f[`kq_${lop.id}`] ?? "", f[`gc_${lop.id}`] ?? "");
+    if (milestoneKy) {
+      const ms = getMilestone(con, n, milestoneKy.id);
+      if (!ms || String(ms.loai) !== milestoneKy.loai) throw new WorkflowError(400, "Kỳ khen thưởng không hợp lệ.");
+      saveMilestoneEntries(con, n, milestoneKy.id, f);
+    } else {
+      if (ky.startsWith("tuan:")) requireOwned(con, "tuan", Number(ky.slice(5)), n);
+      for (const key of Object.keys(f)) {
+        const match = /^(?:kq|gc)_(.+)$/.exec(key);
+        if (match) requireOwned(con, "lop", Number(match[1]), n);
+      }
+      for (const lop of listLop(con, n)) {
+        saveKhen(con, n, ky, Number(lop.id), f[`kq_${lop.id}`] ?? "", f[`gc_${lop.id}`] ?? "");
+      }
     }
   });
   flash(res, "Đã lưu khen thưởng");
@@ -601,7 +698,7 @@ function exportRequest(req: express.Request): ExportRequest {
   const model = String(req.query.model || "monthly");
   const viewMode = String(req.query.view || "official");
   const cut = String(req.query.cut || "school");
-  if (!["tuan", "thang", "nua", "hk", "nam"].includes(scope) || !Object.hasOwn(MODELS, model) || !["official", "preview"].includes(viewMode)) {
+  if (!["tuan", "thang", "nua", "hk", "nam", "hoi_hoc", "tam_ket"].includes(scope) || !Object.hasOwn(MODELS, model) || !["official", "preview"].includes(viewMode)) {
     throw new WorkflowError(400, "Phạm vi xuất không hợp lệ.");
   }
   return {
@@ -692,6 +789,8 @@ app.get("/bao-cao", (req, res) => {
   view(env, req, res, "baocao.html", {
     ...ctx(), active: "bc", tuans: listTuan(con, n), months: monthsOf(con, n),
     lops: listLop(con, n), hks: [["1", "Học kỳ I"], ["2", "Học kỳ II"]], models: MODELS,
+    hoi_hoc: listMilestones(con, n, "hoi_hoc"),
+    tam_ket: getTamKet(con, n) ?? null,
   });
 });
 app.get("/quy-che", (_req, res) => res.redirect("/tieu-chi"));

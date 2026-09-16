@@ -11,6 +11,7 @@
     </select>
   </div>
 </form>
+{% if milestone_khen %}<p class="muted">Kỷ luật / khen hội học và 8 tuần lưu vào mốc (<code>milestone_entry</code>), không dùng kỳ tổng hợp.</p>{% endif %}
 <form method="post">
   <input type="hidden" name="nam_id" value="{{ nam.id }}">
   <input type="hidden" name="ky" value="{{ ky }}">

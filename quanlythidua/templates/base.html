@@ -34,6 +34,7 @@
     ['bc_tuan', 'Nhập tuần', url_for('bao_cao_tuan'), 'm3'],
     ['cham', 'Chấm tuần', url_for('cham_tuan'), 'm3'],
     ['xep', 'Xếp hạng tuần', url_for('xep'), 'm4'],
+    ['hoi_hoc', 'Hội học', url_for('hoi_hoc'), 'm4'],
     ['periods', 'Tổng hợp kỳ', url_for('periods.index'), 'm5'],
     ['assessments', 'Thi và hoạt động', url_for('assessments.index'), 'm4'],
     ['conduct', 'Công tác chủ nhiệm', url_for('conduct.index'), 'm5'],
@@ -57,6 +58,12 @@
     {% else %}<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg>{% endif %}
     {{ label }}
   </a>
+  {% if key=='hoi_hoc' and show_tam_ket %}
+  <a class="nav-item {% if active=='tam_ket' %}active{% endif %}" href="/hoi-hoc?milestone_id={{ tam_ket_id }}">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 3v18h18"/><path d="M7 16v-5M12 16V8M17 16v-8"/></svg>
+    8 tuần
+  </a>
+  {% endif %}
   {% endfor %}
   <details class="nav-fold" {% if active in ['lop','qc','formulas','nam_hoc'] %}open{% endif %}>
     <summary class="nav-item">

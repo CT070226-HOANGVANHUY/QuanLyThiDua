@@ -4,6 +4,7 @@ import {
   listLop,
   listTuan,
   requireActiveYear,
+  requireOwned,
   run,
   tableExists,
   transaction,
@@ -63,10 +64,9 @@ export type MilestoneWeekOption = {
   selected: boolean;
 };
 
-export function suggestedHoiHocWeeks(con: Db, namId: number, ma: string): MilestoneWeekOption[] {
-  const month = HOI_HOC_MONTH[ma];
+export function schoolFridayWeeks(con: Db, namId: number): MilestoneWeekOption[] {
   const calendar = schoolCalendar(con, namId);
-  if (!month || !calendar.ngay_bd || !calendar.ngay_kt) return [];
+  if (!calendar.ngay_bd || !calendar.ngay_kt) return [];
   const existing = listTuan(con, namId);
   const byStart = new Map(existing.filter((w) => w.ngay_bd).map((w) => [String(w.ngay_bd), w]));
   const firstFriday = fridayOnOrBefore(calendar.ngay_bd);
@@ -74,7 +74,6 @@ export function suggestedHoiHocWeeks(con: Db, namId: number, ma: string): Milest
   for (let start = firstFriday; start <= calendar.ngay_kt; start = addDays(start, 7)) {
     const end = addDays(start, 6);
     if (end < calendar.ngay_bd || start > calendar.ngay_kt) continue;
-    if (!overlapsMonth(start, end, month)) continue;
     const saved = byStart.get(start);
     const calendarNo = saved?.calendar_no != null
       ? Number(saved.calendar_no)
@@ -86,20 +85,26 @@ export function suggestedHoiHocWeeks(con: Db, namId: number, ma: string): Milest
       tuan_id: saved ? Number(saved.id) : undefined,
       so_tuan: saved ? Number(saved.so_tuan) : undefined,
       trang_thai: saved ? String(saved.trang_thai) : undefined,
-      suggested: true,
+      suggested: false,
       selected: false,
     });
   }
   return out;
 }
 
-export function hoiHocWeekOptions(con: Db, namId: number, milestone: Dict): MilestoneWeekOption[] {
-  const suggested = suggestedHoiHocWeeks(con, namId, String(milestone.ma));
-  const assigned = milestoneWeeks(con, Number(milestone.id));
+export function suggestedHoiHocWeeks(con: Db, namId: number, ma: string): MilestoneWeekOption[] {
+  const month = HOI_HOC_MONTH[ma];
+  if (!month) return [];
+  return schoolFridayWeeks(con, namId)
+    .filter((week) => overlapsMonth(week.ngay_bd, week.ngay_kt, month))
+    .map((week) => ({ ...week, suggested: true, selected: false }));
+}
+
+function mergeAssignedWeeks(options: MilestoneWeekOption[], assigned: Dict[]): MilestoneWeekOption[] {
   const assignedStarts = new Set(assigned.map((w) => String(w.ngay_bd)));
   const seen = new Set<string>();
   const out: MilestoneWeekOption[] = [];
-  for (const week of suggested) {
+  for (const week of options) {
     week.selected = assignedStarts.has(week.ngay_bd);
     out.push(week);
     seen.add(week.ngay_bd);
@@ -122,13 +127,60 @@ export function hoiHocWeekOptions(con: Db, namId: number, milestone: Dict): Mile
   return out.sort((a, b) => a.ngay_bd.localeCompare(b.ngay_bd));
 }
 
+export function hoiHocWeekOptions(con: Db, namId: number, milestone: Dict): MilestoneWeekOption[] {
+  return mergeAssignedWeeks(suggestedHoiHocWeeks(con, namId, String(milestone.ma)), milestoneWeeks(con, Number(milestone.id)));
+}
+
+export function tamKetWeekOptions(con: Db, namId: number, milestone: Dict): MilestoneWeekOption[] {
+  return mergeAssignedWeeks(schoolFridayWeeks(con, namId), milestoneWeeks(con, Number(milestone.id)));
+}
+
+export function getTamKet(con: Db, namId: number) {
+  if (!tableExists(con, "milestone")) return undefined;
+  return get(con, "SELECT * FROM milestone WHERE nam_hoc_id=? AND ma='tam_ket'", [namId]);
+}
+
+export function createTamKet(con: Db, namId: number, nguonTuan: string) {
+  return transaction(con, () => {
+    requireActiveYear(con, namId);
+    if (!tableExists(con, "milestone")) throw new WorkflowError(500, "Chưa có bảng mốc hội học.");
+    if (nguonTuan !== "union" && nguonTuan !== "manual") {
+      throw new WorkflowError(400, "Nguồn tuần 8 tuần không hợp lệ.");
+    }
+    if (getTamKet(con, namId)) throw new WorkflowError(400, "Đã có mốc 8 tuần.");
+    run(con, `INSERT INTO milestone(nam_hoc_id,loai,ma,ten,nguon_tuan)
+      VALUES (?,'tam_ket','tam_ket','8 tuần',?)`, [namId, nguonTuan]);
+    const id = Number(get(con, "SELECT id FROM milestone WHERE nam_hoc_id=? AND ma='tam_ket'", [namId])!.id);
+    if (nguonTuan === "union") syncUnionTamKet(con, namId);
+    return id;
+  });
+}
+
+export function parseMilestoneKy(ky: string): { loai: "hoi_hoc" | "tam_ket"; id: number } | undefined {
+  const match = /^(hoi_hoc|tam_ket):([1-9]\d*)$/.exec(ky);
+  if (!match) return;
+  return { loai: match[1] as "hoi_hoc" | "tam_ket", id: Number(match[2]) };
+}
+
+export function khenMilestoneKeys(con: Db, namId: number): [string, string][] {
+  return listMilestones(con, namId).map((ms) => [`${ms.loai}:${ms.id}`, String(ms.ten)] as [string, string]);
+}
+
 export function namHocMilestoneContext(con: Db, namId: number) {
   const formula = yearFormulaOf(con, namId);
   const hoiHoc = listMilestones(con, namId, "hoi_hoc").map((ms) => ({
     ...ms,
     weeks: hoiHocWeekOptions(con, namId, ms),
   }));
-  return { year_formula: formula, hoi_hoc: hoiHoc };
+  const tam = getTamKet(con, namId);
+  const tamWeeks = tam ? tamKetWeekOptions(con, namId, tam) : [];
+  return {
+    year_formula: formula,
+    hoi_hoc: hoiHoc,
+    tam_ket: tam
+      ? { ...tam, weeks: String(tam.nguon_tuan) === "union" ? tamWeeks.filter((week) => week.selected) : tamWeeks }
+      : null,
+  };
 }
 
 function uniqueStarts(values: string[]) {
@@ -188,6 +240,89 @@ export function saveMilestoneWeeks(con: Db, namId: number, milestoneId: number, 
     });
     if (String(ms.loai) === "hoi_hoc") syncUnionTamKet(con, namId);
     return weeks.map((week) => Number(week.id));
+  });
+}
+
+function parsePositiveInt(raw: string, message: string) {
+  const text = raw.trim();
+  if (!text) return null;
+  const value = Number(text);
+  if (!Number.isSafeInteger(value) || value < 1) throw new WorkflowError(400, message);
+  return value;
+}
+
+function formHas(form: Record<string, string>, prefix: string, lopId: number) {
+  return Object.prototype.hasOwnProperty.call(form, `${prefix}_${lopId}`);
+}
+
+export function saveMilestoneEntries(con: Db, namId: number, milestoneId: number, form: Record<string, string>) {
+  return transaction(con, () => {
+    requireActiveYear(con, namId);
+    if (!tableExists(con, "milestone_entry")) throw new WorkflowError(500, "Chưa có bảng ghi chú mốc hội học.");
+    const ms = getMilestone(con, namId, milestoneId);
+    if (!ms) throw new WorkflowError(404, "Không tìm thấy mốc trong năm học này.");
+    for (const [field, value] of Object.entries(form)) {
+      if (typeof value !== "string") throw new WorkflowError(400, "Dữ liệu mốc không hợp lệ.");
+      const match = /^(?:rank|discipline|reward|notes|kq|gc)_(.+)$/.exec(field);
+      if (!match) continue;
+      if (!/^[1-9]\d*$/.test(match[1])) throw new WorkflowError(404, "Không tìm thấy lớp.");
+      requireOwned(con, "lop", Number(match[1]), namId);
+    }
+    const existing: Record<number, Dict> = {};
+    for (const row of all(con, "SELECT * FROM milestone_entry WHERE milestone_id=?", [milestoneId])) {
+      existing[Number(row.lop_id)] = row;
+    }
+    for (const lop of listLop(con, namId)) {
+      const id = Number(lop.id);
+      const prev = existing[id];
+      const rank = formHas(form, "rank", id)
+        ? parsePositiveInt(form[`rank_${id}`] ?? "", "XT ghi đè phải là số nguyên dương.")
+        : prev?.override_rank != null ? Number(prev.override_rank) : null;
+      const discipline = formHas(form, "discipline", id)
+        ? (form[`discipline_${id}`] ?? "").trim()
+        : String(prev?.discipline ?? "");
+      const reward = formHas(form, "reward", id)
+        ? (form[`reward_${id}`] ?? "").trim()
+        : formHas(form, "kq", id)
+          ? (form[`kq_${id}`] ?? "").trim()
+          : String(prev?.reward ?? "");
+      const notes = formHas(form, "notes", id)
+        ? (form[`notes_${id}`] ?? "").trim()
+        : formHas(form, "gc", id)
+          ? (form[`gc_${id}`] ?? "").trim()
+          : String(prev?.notes ?? "");
+      run(con, `INSERT INTO milestone_entry(milestone_id,lop_id,override_rank,discipline,reward,notes)
+        VALUES (?,?,?,?,?,?)
+        ON CONFLICT(milestone_id, lop_id) DO UPDATE SET
+          override_rank=excluded.override_rank, discipline=excluded.discipline,
+          reward=excluded.reward, notes=excluded.notes`,
+        [milestoneId, id, rank, discipline, reward, notes]);
+    }
+  });
+}
+
+export function saveMilestoneActivity(con: Db, namId: number, milestoneId: number, form: Record<string, string>) {
+  return transaction(con, () => {
+    requireActiveYear(con, namId);
+    if (!tableExists(con, "milestone_activity")) throw new WorkflowError(500, "Chưa có bảng HĐTT hội học.");
+    const ms = getMilestone(con, namId, milestoneId);
+    if (!ms) throw new WorkflowError(404, "Không tìm thấy mốc trong năm học này.");
+    if (String(ms.loai) !== "hoi_hoc") throw new WorkflowError(400, "HĐTT đợt chỉ nhập cho hội học.");
+    for (const [field, value] of Object.entries(form)) {
+      if (typeof value !== "string") throw new WorkflowError(400, "Dữ liệu HĐTT không hợp lệ.");
+      const match = /^(?:the_thao|van_nghe)_(.+)$/.exec(field);
+      if (!match) continue;
+      if (!/^[1-9]\d*$/.test(match[1])) throw new WorkflowError(404, "Không tìm thấy lớp.");
+      requireOwned(con, "lop", Number(match[1]), namId);
+    }
+    for (const lop of listLop(con, namId)) {
+      const id = Number(lop.id);
+      const theThao = parsePositiveInt(form[`the_thao_${id}`] ?? "", "XT thể thao phải là số nguyên ≥ 1.");
+      const vanNghe = parsePositiveInt(form[`van_nghe_${id}`] ?? "", "XT văn nghệ phải là số nguyên ≥ 1.");
+      run(con, `INSERT INTO milestone_activity(milestone_id,lop_id,the_thao,van_nghe) VALUES (?,?,?,?)
+        ON CONFLICT(milestone_id, lop_id) DO UPDATE SET the_thao=excluded.the_thao, van_nghe=excluded.van_nghe`,
+        [milestoneId, id, theThao, vanNghe]);
+    }
   });
 }
 
@@ -331,7 +466,7 @@ export function milestoneTable(
   }
   applyOverride(rows, entries);
   columns.push(["complete_count", "Đã đủ"], ["constituent_count", "Cấu phần"]);
-  if (double === "hdtt_only") columns.push(["xt_hdtt", "XT HĐTT"]);
+  if (double === "hdtt_only") columns.push(["the_thao", "XT thể thao"], ["van_nghe", "XT văn nghệ"], ["xt_hdtt", "XT HĐTT"]);
   columns.push(["tong", "Tổng"], ["override_rank", "XT nguồn ghi đè"], ["xt_dot", "XT đợt"]);
   for (const row of rows) {
     const entry = entries[Number(row.lop_id)] ?? {};
@@ -343,6 +478,9 @@ export function milestoneTable(
       : "Chờ đủ dữ liệu của nhóm";
   }
   columns.push(["input_source", "Nguồn XT"], ["status", "Trạng thái"], ["discipline", "Kỷ luật"], ["reward", "Khen thưởng"], ["notes", "Ghi chú"]);
+  rows.sort((a, b) => Number(a.nhom) - Number(b.nhom)
+    || Number(a.xt_dot ?? 9999) - Number(b.xt_dot ?? 9999)
+    || String(a.ten).localeCompare(String(b.ten), "vi"));
   const source = double === "hdtt_only"
     ? "tong = Σ xt_chung + 2 × xt_hdtt; xt_dot = RANK(tong, asc) trong nhóm."
     : double === "week_xt"
