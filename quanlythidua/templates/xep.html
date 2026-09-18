@@ -3,26 +3,25 @@
 {% block body %}
 <div class="page-head">
   <h1 class="page-title">Xếp hạng và chốt tuần</h1>
-  <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+  <div class="page-actions">
     {% include "week_filter.html" %}
     {% if tuan and tuan.id %}
     <a class="btn-gold" href="{{ url_for('xuat_tuan', nam_id=nam.id, nam=year, thang=month, week_start=selection.week_start, tuan_id=tuan.id, lop_id=lop_id) }}">{% if tuan.legacy or tuan.conflict or tuan.outside %}Tải Excel nháp{% else %}Tải Excel{% endif %}</a>
-    <a class="btn ghost" href="{{ url_for('xuat_loi_hs', tuan_id=tuan.id) }}">Bảng vi phạm</a>
-    <a class="btn ghost" href="{{ url_for('xuat_ban_in', tuan_id=tuan.id) }}">Bảng treo tường</a>
-    <a class="btn ghost" href="{{ url_for('xuat_ban_in', tuan_id=tuan.id, format='print') }}">In bảng treo tường</a>
+    <a class="btn ghost" href="{{ url_for('xuat_loi_hs', tuan_id=tuan.id, format='print') }}">Xem bảng vi phạm</a>
+    <a class="btn ghost" href="{{ url_for('xuat_ban_in', tuan_id=tuan.id, format='print') }}">Xem bảng treo tường</a>
     {% endif %}
   </div>
 </div>
+{% include "week_flow.html" %}
 <div class="guide">
   <p>Hạng tính <b>riêng lớp chọn</b> và <b>riêng lớp thường</b>, không trộn cả trường. 1 = nhất.</p>
-  <p><b>Chốt tuần</b> khi đã nhập đủ lớp — còn sửa được nếu mở lại. <b>Công bố</b> khi số đã đúng: khóa tuần này để tính tháng, hội học, điểm chủ nhiệm.</p>
 </div>
 {% if loai_hinh_mismatch and loai_hinh_mismatch.length %}
 <div class="banner danger" style="margin-bottom:12px"><span class="dot">!</span> Nhóm và loại hình lệch: {% for r in loai_hinh_mismatch %}{{ r.ten }}{% if not loop.last %}, {% endif %}{% endfor %}. Sửa tại Danh sách lớp.</div>
 {% endif %}
 {% if tuan %}
 {% if tuan.id and not tuan.legacy and not tuan.conflict and not tuan.outside %}
-<form method="post" action="{{ url_for('chot_tuan') }}" class="toolbar">
+<form method="post" action="{{ url_for('chot_tuan') }}" class="lock-card" data-week-status="{{ tuan.trang_thai }}">
   <input type="hidden" name="nam_id" value="{{ nam.id }}">
   <input type="hidden" name="tuan_id" value="{{ tuan.id }}">
   <input type="hidden" name="revision" value="{{ tuan.revision }}">
@@ -30,6 +29,17 @@
   <input type="hidden" name="nam" value="{{ year }}">
   <input type="hidden" name="thang" value="{{ month }}">
   {% if lop_id %}<input type="hidden" name="lop_id" value="{{ lop_id }}">{% endif %}
+  <p class="lock-now">
+    {% if tuan.trang_thai=='nhap' %}
+    <b>Bước 2 — Chốt tuần.</b>
+    {% if chua_bao and chua_bao > 0 %}Còn {{ chua_bao }} lớp chưa hoàn tất. Nên nhập xong trước khi chốt.{% else %}Đã nhập đủ lớp. Bấm Chốt để khóa tạm và kiểm tra hạng. Còn mở lại được.{% endif %}
+    {% elif tuan.trang_thai=='chot' %}
+    <b>Bước 3 — Công bố.</b> Số đã đúng thì Công bố. Sau đó mới tính tháng, hội học, điểm chủ nhiệm. Muốn sửa thì mở lại.
+    {% else %}
+    <b>Bước 4 — Đã công bố.</b> Số tuần này đã khóa. Tải bảng in bên phải, hoặc hủy công bố nếu phải sửa.
+    {% endif %}
+  </p>
+  <div class="toolbar" style="margin:0">
   <label for="transition-reason">Lý do (khi mở lại hoặc hủy công bố)</label><input id="transition-reason" name="reason" placeholder="Ví dụ: sửa sĩ số lớp 10A3">
   {% if tuan.trang_thai=='nhap' %}
   <button class="btn" name="trang_thai" value="chot">Chốt tuần</button>
@@ -39,6 +49,7 @@
   {% else %}
   <button class="btn ghost" name="trang_thai" value="chot">Hủy công bố để sửa</button>
   {% endif %}
+  </div>
 </form>
 {% elif not tuan.id %}
 <p class="page-sub">Tuần này chưa có lớp nào được lưu. Hãy nhập tuần trước, rồi quay lại đây để chốt.</p>

@@ -2,9 +2,10 @@
 {% block title %}Báo cáo và xuất{% endblock %}
 {% block body %}
 <h1 class="page-title">In và tải file</h1>
-<p class="page-sub">Tải về máy rồi in. «Chỉ tuần đã công bố» dùng họp chính thức. «Kể cả tuần chưa công bố» chỉ xem thử.</p>
+{% include "week_flow.html" %}
+<p class="page-sub">Bấm <b>Xem trước</b> để kiểm tra bảng trên màn hình. Đúng rồi mới In hoặc Tải Excel / Word. «Chỉ tuần đã công bố» dùng họp chính thức.</p>
 <div class="guide">
-  <p>Hay dùng nhất: <b>bảng vi phạm theo lớp</b> và <b>bảng treo tường</b> của tuần vừa công bố.</p>
+  <p>Hay dùng nhất: <b>bảng vi phạm theo lớp</b> và <b>bảng treo tường</b> của tuần vừa công bố. Xem trước rồi mới tải.</p>
 </div>
 <div class="two">
   <div class="card">
@@ -12,7 +13,10 @@
     <p class="hint">Một file Excel, xếp theo thứ tự lớp rồi học sinh.</p>
     <form class="form-grid" method="get" action="{{ url_for('xuat_loi_hs') }}">
       <div class="field"><label>Tuần</label><select name="tuan_id">{% for week in tuans %}<option value="{{ week.id }}">Tuần {{ week.so_tuan }} · {{ week.ngay_bd or 'chưa gán ngày' }}</option>{% endfor %}</select></div>
-      <div class="toolbar"><button class="btn-gold" type="submit">Tải bảng vi phạm</button></div>
+      <div class="toolbar">
+        <button class="btn" type="submit" name="format" value="print">Xem trước</button>
+        <button class="btn-gold" type="submit" name="format" value="xlsx">Tải Excel</button>
+      </div>
     </form>
   </div>
   <div class="card">
@@ -20,8 +24,10 @@
     <p class="hint">Giống bảng in nề nếp / học tập đang treo ở trường.</p>
     <form class="form-grid" method="get" action="{{ url_for('xuat_ban_in') }}">
       <div class="field"><label>Tuần</label><select name="tuan_id">{% for week in tuans %}<option value="{{ week.id }}">Tuần {{ week.so_tuan }} · {{ week.ngay_bd or 'chưa gán ngày' }}</option>{% endfor %}</select></div>
-      <div class="field"><label>Định dạng</label><select name="format"><option value="xlsx">Excel</option><option value="print">Bản in</option></select></div>
-      <div class="toolbar"><button class="btn-gold" type="submit">Tải bảng treo tường</button></div>
+      <div class="toolbar">
+        <button class="btn" type="submit" name="format" value="print">Xem trước</button>
+        <button class="btn-gold" type="submit" name="format" value="xlsx">Tải Excel</button>
+      </div>
     </form>
   </div>
   <div class="card">
@@ -31,8 +37,8 @@
       <div class="field"><label>Lớp</label><select name="lop_id">{% for lop in lops %}<option value="{{ lop.id }}">{{ lop.ten }}</option>{% endfor %}</select></div>
       <input type="hidden" name="nam_id" value="{{ nam.id }}">
       <div class="toolbar">
+        <button class="btn" type="submit" formaction="/bao-cao/lop/in">Xem trước</button>
         <button class="btn-gold" type="submit">Tải Word</button>
-        <button class="btn ghost" type="submit" formaction="/bao-cao/lop/in">In / PDF</button>
         <button class="btn ghost" type="submit" name="blank" value="1">Mẫu trắng</button>
       </div>
     </form>
@@ -46,8 +52,10 @@
       <div class="field"><label>Nhóm</label><input name="nhom" type="number" min="1" placeholder="khi chọn nhóm"></div>
       <div class="field"><label>Lớp</label><select name="lop_id"><option value="">—</option>{% for lop in lops %}<option value="{{ lop.id }}">{{ lop.ten }}</option>{% endfor %}</select></div>
       <div class="field"><label>Lấy số liệu</label><select name="view"><option value="preview">Kể cả tuần chưa công bố</option><option value="official">Chỉ tuần đã công bố</option></select></div>
-      <div class="field"><label>Định dạng</label><select name="format"><option value="xlsx">Excel</option><option value="print">Bản in</option></select></div>
-      <div class="toolbar"><button class="btn-gold" type="submit">Tạo báo cáo</button></div>
+      <div class="toolbar">
+        <button class="btn" type="submit" name="format" value="print">Xem trước</button>
+        <button class="btn-gold" type="submit" name="format" value="xlsx">Tải Excel</button>
+      </div>
     </form>
   </div>
   <div class="card">
@@ -56,8 +64,11 @@
       <input type="hidden" name="scope" value="thang"><input type="hidden" name="model" value="monthly">
       <div class="field"><label>Tháng</label><select name="key">{% for month in months %}<option value="{{ month.key }}">{{ month.key }} · HK{{ month.semester }}</option>{% endfor %}</select></div>
       <div class="field"><label>Lấy số liệu</label><select name="view"><option value="official">Chỉ tuần đã công bố</option><option value="preview">Kể cả tuần chưa công bố</option></select></div>
-      <div class="field"><label>Định dạng</label><select name="format"><option value="xlsx">Excel</option><option value="docx">Word</option><option value="print">Bản in</option></select></div>
-      <div class="toolbar"><button class="btn-gold" type="submit">Tạo báo cáo</button></div>
+      <div class="toolbar">
+        <button class="btn" type="submit" name="format" value="print">Xem trước</button>
+        <button class="btn-gold" type="submit" name="format" value="xlsx">Tải Excel</button>
+        <button class="btn ghost" type="submit" name="format" value="docx">Tải Word</button>
+      </div>
     </form>
   </div>
   <div class="card">
@@ -67,8 +78,11 @@
       <div class="field"><label>Kỳ</label><select name="key" data-period-key><option data-scope="hk" value="1">HKI</option><option data-scope="hk" value="2">HKII</option><option data-scope="nua" value="1-dau">HKI · nửa đầu</option><option data-scope="nua" value="1-sau">HKI · nửa sau</option><option data-scope="nua" value="2-dau">HKII · nửa đầu</option><option data-scope="nua" value="2-sau">HKII · nửa sau</option></select></div>
       <div class="field"><label>Mô hình</label><select name="model" data-period-model>{% for value, label in models %}<option value="{{ value }}">{{ label }}</option>{% endfor %}</select></div>
       <div class="field"><label>Lấy số liệu</label><select name="view"><option value="official">Chỉ tuần đã công bố</option><option value="preview">Kể cả tuần chưa công bố</option></select></div>
-      <div class="field"><label>Định dạng</label><select name="format"><option value="xlsx">Excel</option><option value="docx">Word</option><option value="print">Bản in</option></select></div>
-      <div class="toolbar"><button class="btn-gold" type="submit">Tạo báo cáo</button></div>
+      <div class="toolbar">
+        <button class="btn" type="submit" name="format" value="print">Xem trước</button>
+        <button class="btn-gold" type="submit" name="format" value="xlsx">Tải Excel</button>
+        <button class="btn ghost" type="submit" name="format" value="docx">Tải Word</button>
+      </div>
     </form>
   </div>
   <div class="card">
@@ -83,8 +97,11 @@
         </select>
       </div>
       <div class="field"><label>Lấy số liệu</label><select name="view"><option value="official">Chỉ tuần đã công bố</option><option value="preview">Kể cả tuần chưa công bố</option></select></div>
-      <div class="field"><label>Định dạng</label><select name="format"><option value="xlsx">Excel</option><option value="docx">Word</option><option value="print">Bản in</option></select></div>
-      <div class="toolbar"><button class="btn-gold" type="submit">Tạo báo cáo</button></div>
+      <div class="toolbar">
+        <button class="btn" type="submit" name="format" value="print">Xem trước</button>
+        <button class="btn-gold" type="submit" name="format" value="xlsx">Tải Excel</button>
+        <button class="btn ghost" type="submit" name="format" value="docx">Tải Word</button>
+      </div>
     </form>
   </div>
   <div class="card">
@@ -93,8 +110,11 @@
       <input type="hidden" name="scope" value="nam"><input type="hidden" name="key" value="all">
       <div class="field"><label>Mô hình</label><select name="model">{% for value, label in models %}<option value="{{ value }}">{{ label }}</option>{% endfor %}</select></div>
       <div class="field"><label>Lấy số liệu</label><select name="view"><option value="official">Chỉ tuần đã công bố</option><option value="preview">Kể cả tuần chưa công bố</option></select></div>
-      <div class="field"><label>Định dạng</label><select name="format"><option value="xlsx">Excel</option><option value="docx">Word</option><option value="print">Bản in</option></select></div>
-      <div class="toolbar"><button class="btn-gold" type="submit">Tạo báo cáo</button></div>
+      <div class="toolbar">
+        <button class="btn" type="submit" name="format" value="print">Xem trước</button>
+        <button class="btn-gold" type="submit" name="format" value="xlsx">Tải Excel</button>
+        <button class="btn ghost" type="submit" name="format" value="docx">Tải Word</button>
+      </div>
     </form>
   </div>
 </div>

@@ -5,7 +5,8 @@
   <h1 class="page-title">Hôm nay làm gì</h1>
   {% include "week_filter.html" %}
 </div>
-<p class="page-sub">{% if tuan and tuan.ngay_bd %}Tuần {{ tuan.calendar_no or '' }}: {{ tuan.ngay_bd }} → {{ tuan.ngay_kt }}{% else %}{{ tuan_hien_tai }}{% endif %}{% if status_label %} · {{ status_label }}{% endif %}</p>
+<p class="page-sub">Làm theo 4 bước của tuần đang chọn. Ô vàng bên dưới là việc tiếp theo.</p>
+{% include "week_flow.html" %}
 
 {% if next_step %}
 <div class="next-box">

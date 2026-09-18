@@ -16,7 +16,8 @@
       <option value="preview" {% if resultView=='preview' %}selected{% endif %}>Xem thử</option>
     </select>
   </div>
-  <a class="btn-gold" href="/xuat/bao-cao?scope={{ table.milestone.loai }}&key={{ table.milestone.id }}&model=monthly&view={{ resultView }}&format=xlsx&cut=school">Xuất Excel</a>
+  <a class="btn" href="/xuat/bao-cao?scope={{ table.milestone.loai }}&key={{ table.milestone.id }}&model=monthly&view={{ resultView }}&format=print&cut=school">Xem trước</a>
+  <a class="btn-gold" href="/xuat/bao-cao?scope={{ table.milestone.loai }}&key={{ table.milestone.id }}&model=monthly&view={{ resultView }}&format=xlsx&cut=school">Tải Excel</a>
 </form>
 
 <div class="card">

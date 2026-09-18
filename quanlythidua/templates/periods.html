@@ -19,7 +19,8 @@
     <option value="official" {% if resultView=='official' %}selected{% endif %}>Chỉ tuần đã công bố</option>
     <option value="preview" {% if resultView=='preview' %}selected{% endif %}>Xem thử</option>
   </select></div>
-  <a class="btn-gold" href="{{ url_for('periods.export', scope=mode, mode=mode, key=key, model=model, view=resultView, format='xlsx', cut='school') }}">Xuất Excel</a>
+  <a class="btn" href="{{ url_for('periods.export', scope=mode, mode=mode, key=key, model=model, view=resultView, format='print', cut='school') }}">Xem trước</a>
+  <a class="btn-gold" href="{{ url_for('periods.export', scope=mode, mode=mode, key=key, model=model, view=resultView, format='xlsx', cut='school') }}">Tải Excel</a>
 </form>
 
 <div class="card">

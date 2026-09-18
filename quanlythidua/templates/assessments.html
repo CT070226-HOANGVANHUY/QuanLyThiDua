@@ -25,30 +25,32 @@
   </div>
   <a class="btn-gold" href="{{ url_for('assessments.export', kind=kind, period=period) }}">Xuất Excel</a>
 </form>
-{% if error %}<div class="flash" role="alert">{{ error }}</div>{% endif %}
+{% if error %}<div class="flash error" role="alert" data-error-alert="{{ error | e }}">{{ error }}</div>{% endif %}
 {% if selected %}
 <div class="card">
   <h2>{{ selected.ten }} · sĩ số {{ selected.si_so }}</h2>
-  <form method="post" action="{{ url_for('assessments.index', kind=kind, period=period) }}">
+  <form method="post" action="{{ url_for('assessments.index', kind=kind, period=period) }}" data-stepper-form>
     <input type="hidden" name="nam_id" value="{{ assessment_nam_id }}">
     <input type="hidden" name="lop_id" value="{{ selected.id }}">
     {% if kind == 'thi' %}
     <h3>Tỷ lệ môn (%)</h3>
     <div class="form-grid">
       {% for key, label in subjects %}
-      <div class="field"><label>{{ label }}</label><input name="{{ key }}" type="number" min="0" max="100" step="any" value="{{ values[key] }}" placeholder="—"></div>
+      <div class="field"><label for="{{ key }}">{{ label }}</label><input id="{{ key }}" name="{{ key }}" type="number" min="0" max="100" step="any" value="{{ values[key] }}" placeholder="—"></div>
       {% endfor %}
     </div>
-    <h3>Xếp loại (tổng = sĩ số)</h3>
-    <div class="form-grid">
+    <h3>Xếp loại (tổng = sĩ số {{ selected.si_so }})</h3>
+    <p class="hint">Bấm − / + theo số học sinh từng mức. Tổng phải đúng sĩ số lớp.</p>
+    <div class="form-grid count-grid">
       {% for key, label, weight in classifications %}
-      <div class="field"><label>{{ label }}</label><input name="{{ key }}" type="number" min="0" step="1" value="{{ values[key] }}" placeholder="—"></div>
+      <div class="field"><label for="{{ key }}">{{ label }}</label><input id="{{ key }}" name="{{ key }}" type="number" min="0" step="1" inputmode="numeric" value="{{ values[key] }}" placeholder="—"></div>
       {% endfor %}
     </div>
+    <p class="count-meter" data-exam-meter data-max="{{ selected.si_so }}" data-keys="{% for key, label, weight in classifications %}{{ key }}{% if not loop.last %},{% endif %}{% endfor %}"></p>
     {% else %}
     <div class="form-grid">
       {% for key, label in activities %}
-      <div class="field"><label>{{ label }}</label><input name="{{ key }}" type="number" min="1" step="1" value="{{ values[key] }}" placeholder="—"></div>
+      <div class="field"><label for="{{ key }}">{{ label }}</label><input id="{{ key }}" name="{{ key }}" type="number" min="1" step="1" inputmode="numeric" value="{{ values[key] }}" placeholder="—"></div>
       {% endfor %}
     </div>
     {% endif %}
@@ -79,3 +81,4 @@
   </div>
 </div>
 {% endblock %}
+{% block extra %}<script src="/static/js/forms.js"></script>{% endblock %}

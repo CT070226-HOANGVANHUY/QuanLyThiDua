@@ -6,6 +6,7 @@
   "scripts": {
     "start": "node --experimental-strip-types src/server.ts",
     "test": "node --experimental-strip-types --test tests/*.test.ts",
+    "seed:mock": "node --experimental-strip-types scripts/seed-mock.ts",
     "desktop": "electron .",
     "dist": "electron-packager . QuanLyThiDua --platform=win32 --arch=x64 --out=dist --overwrite --asar=false --ignore=dist --ignore=_extract --ignore=workbook_research.json"
   },

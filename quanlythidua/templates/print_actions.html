@@ -1,0 +1,8 @@
+<p class="preview-lead">Đây là bản xem trước. Kiểm tra số liệu rồi in hoặc tải file.</p>
+<div class="actions">
+  <button type="button" onclick="window.print()">In / Lưu PDF</button>
+  {% if download_xlsx %}<a href="{{ download_xlsx }}">Tải Excel</a>{% endif %}
+  {% if download_docx %}<a href="{{ download_docx }}">Tải Word</a>{% endif %}
+  {% if desktop %}<button type="button" onclick="window.desktop && window.desktop.openPrint(location.href)">Mở bản in trong trình duyệt</button>{% endif %}
+  <button type="button" onclick="history.back()">Quay lại</button>
+</div>

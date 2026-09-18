@@ -8,8 +8,18 @@
     @page { size: A4 portrait; margin: 20mm 20mm 20mm 25mm; }
     html, body { margin: 0; background: #fff; color: #111; }
     body { font-family: "Times New Roman", Times, serif; font-size: 13pt; line-height: 1.25; }
-    .actions { display: flex; justify-content: center; gap: 8px; margin: 12px 0 16px; }
-    button { font: 12pt "Be Vietnam Pro", sans-serif; padding: 8px 14px; }
+    .preview-lead { text-align: center; color: #333; margin: 10px 12px 0; font-family: "Be Vietnam Pro", "Segoe UI", sans-serif; font-size: 12pt; }
+    .actions { display: flex; justify-content: center; flex-wrap: wrap; gap: 8px; margin: 12px 0 16px; }
+    .actions button, .actions a {
+      font: 12pt "Be Vietnam Pro", "Segoe UI", sans-serif;
+      padding: 8px 14px;
+      color: #111;
+      background: #f3f7fb;
+      border: 1px solid #b7c7d6;
+      border-radius: 6px;
+      text-decoration: none;
+      cursor: pointer;
+    }
     .head { display: grid; grid-template-columns: 1fr 1fr; text-align: center; font-weight: 700; text-transform: uppercase; }
     h1 { text-align: center; font-size: 16pt; margin: 14px 0 8px; }
     h2 { font-size: 13pt; margin: 14px 0 6px; }
@@ -22,15 +32,11 @@
     .sign p { margin: 4px 0; }
     .sign .role { text-align: right; font-weight: 700; margin-top: 8px; }
     .sign .name { text-align: right; margin-top: 48px; }
-    @media print { .actions { display: none !important; } }
+    @media print { .actions, .preview-lead { display: none !important; } }
   </style>
 </head>
 <body>
-  <div class="actions">
-    <button type="button" onclick="window.print()">In / Lưu PDF</button>
-    {% if desktop %}<button type="button" onclick="window.desktop && window.desktop.openPrint(location.href)">Mở bản in trong trình duyệt</button>{% endif %}
-    <button type="button" onclick="history.back()">Quay lại</button>
-  </div>
+  {% include "print_actions.html" %}
   <div class="head">
     <div>{{ doc.org.xa }}<br>{{ doc.org.truong }}</div>
     <div>{{ doc.org.doan }}<br>****</div>

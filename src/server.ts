@@ -60,6 +60,9 @@ import {
   setTuanStatus,
   upsertTieuChi,
   weekFilter,
+  weekDayOptions,
+  weekFlow,
+  classNameHints,
   resolveWeekForWrite,
   schoolCalendar,
   saveSchoolCalendar,
@@ -147,14 +150,27 @@ app.use("/static", express.static(path.join(ROOT, "quanlythidua", "static")));
 app.use((req, res, next) => {
   const msg = req.cookies.flash;
   if (msg) {
-    (req as express.Request & { flashMsg?: string[] }).flashMsg = [String(msg)];
+    (req as express.Request & { flashMsg?: string[]; flashKind?: string }).flashMsg = [String(msg)];
+    (req as express.Request & { flashKind?: string }).flashKind = req.cookies.flash_kind === "error" ? "error" : "ok";
     res.clearCookie("flash");
+    res.clearCookie("flash_kind");
   }
   next();
 });
 
-function flash(res: express.Response, msg: string) {
-  res.cookie("flash", msg);
+function flash(res: express.Response, msg: string, kind: "ok" | "error" = "ok") {
+  const text = msg.length > 1800 ? `${msg.slice(0, 1800)}…` : msg;
+  res.cookie("flash", text);
+  res.cookie("flash_kind", kind);
+}
+
+function localBack(req: express.Request, fallback = "/") {
+  const referer = req.get("Referer") || "";
+  try {
+    const url = new URL(referer);
+    if (url.hostname === "127.0.0.1" || url.hostname === "localhost") return `${url.pathname}${url.search}`;
+  } catch { /* ignore */ }
+  return fallback;
 }
 function nam(req: express.Request) {
   return getActiveNam(con);
@@ -174,6 +190,52 @@ function ctx() {
     tam_ket_id: tam ? Number(tam.id) : 0,
   };
 }
+
+function attachWeekFlow(wf: ReturnType<typeof weekFilter> | undefined, namId?: number) {
+  if (!wf || !namId) {
+    return {
+      week_flow: weekFlow({ namId: namId || 0, soLop: 0, daBao: 0 }),
+      so_lop: 0,
+      da_bao: 0,
+      chua_bao: 0,
+    };
+  }
+  const tuan = wf.tuan;
+  const frozen = tuan?.id ? frozenWeekClasses(con, Number(tuan.id)) : [];
+  const lops = frozen.length ? frozen : listLop(con, namId);
+  const soLop = lops.length;
+  const daBao = tuan?.id ? reportedCount(con, Number(tuan.id)) : 0;
+  return {
+    week_flow: weekFlow({
+      namId,
+      tuan,
+      soLop,
+      daBao,
+      year: wf.year,
+      month: wf.month,
+      weekStart: wf.selection?.week_start,
+      tuanId: wf.selection?.tuan_id,
+      calendar: wf.calendar,
+    }),
+    so_lop: soLop,
+    da_bao: daBao,
+    chua_bao: Math.max(0, soLop - daBao),
+  };
+}
+function requestQuery(req: express.Request) {
+  const q = new URLSearchParams();
+  for (const [key, value] of Object.entries(req.query)) {
+    if (typeof value === "string") q.set(key, value);
+  }
+  return q;
+}
+
+function withFormat(req: express.Request, format: string) {
+  const q = requestQuery(req);
+  q.set("format", format);
+  return `${req.path}?${q}`;
+}
+
 function displayedWeekNumber(calendarStart: string, weekStart: unknown, fallback: unknown) {
   if (!calendarStart || !weekStart) return Number(fallback);
   const first = new Date(`${calendarStart}T00:00:00Z`);
@@ -249,62 +311,26 @@ app.get("/", (req, res) => {
   const wf = n ? weekFilter(con, Number(n.id), req.query as Record<string, string>) : undefined;
   const tuan = wf?.tuan;
   const results = tuan?.id ? scoreWeek(con, Number(tuan.id)) : [];
-  const da_bao = tuan?.id ? reportedCount(con, Number(tuan.id)) : 0;
+  const flow = attachWeekFlow(wf, n ? Number(n.id) : undefined);
   const chart = tuans.filter((t) => t.ngay_bd && reportedCount(con, Number(t.id))).slice(-5).map((t, i) => ({
     label: `Tuần ${t.calendar_no || t.so_tuan}`, val: reportedCount(con, Number(t.id)), i,
   }));
   const chart_max = Math.max(1, ...chart.map((c) => c.val));
   const pho_bien = tuan?.id ? popularViolations(con, Number(tuan.id)) : [];
   const so_vp = pho_bien.reduce((s, r) => s + Number(r.sl || 0), 0);
-  const chua_bao = Math.max(0, lops.length - da_bao);
   const status = tuan ? String(tuan.trang_thai || "nhap") : "";
-  let next_step = {
-    title: "Bắt đầu năm học",
-    text: "Chọn năm đang làm ở góc trên, hoặc tạo năm mới. Rồi mở Danh sách lớp để kiểm tra sĩ số và GVCN.",
-    href: "/lop",
-    label: "Mở danh sách lớp",
-  };
+  let next_step = flow.week_flow.next;
   if (!n) {
     next_step = { title: "Chưa có năm học", text: "Bấm «Năm mới» góc trên phải để tạo năm đang làm việc.", href: "/", label: "Ở lại trang này" };
   } else if (!lops.length) {
     next_step = { title: "Chưa có lớp", text: "Cần danh sách lớp trước khi nhập tuần.", href: "/lop", label: "Thêm lớp" };
-  } else if (tuan && chua_bao > 0) {
-    next_step = {
-      title: "Nhập tuần đang chọn",
-      text: `Còn ${chua_bao} lớp chưa hoàn tất. Gõ từ giấy bí thư, sổ thanh niên kiểm tra hoặc tin Zalo — không cần bí thư nộp online.`,
-      href: "/bao-cao-tuan",
-      label: "Nhập tuần",
-    };
-  } else if (tuan && status === "nhap" && da_bao === lops.length && lops.length) {
-    next_step = {
-      title: "Đã nhập đủ lớp — chốt tuần",
-      text: "Xem xếp hạng, rồi bấm Chốt tuần. Chốt xong mới công bố để lấy số chính thức.",
-      href: "/ket-qua-tuan",
-      label: "Xếp hạng và chốt",
-    };
-  } else if (tuan && status === "chot") {
-    next_step = {
-      title: "Công bố tuần",
-      text: "Sau khi công bố, số liệu tuần này được khóa. Dùng số đó để tính tháng, hội học và điểm chủ nhiệm.",
-      href: "/ket-qua-tuan",
-      label: "Công bố tuần",
-    };
-  } else if (tuan && status === "cong_bo") {
-    next_step = {
-      title: "Tuần đã công bố",
-      text: "Tải bảng vi phạm hoặc bảng treo tường. Sang tuần sau thì chọn tuần mới ở bộ lọc.",
-      href: "/bao-cao",
-      label: "In và tải file",
-    };
   }
   view(env, req, res, "home.html", {
     ...ctx(),
     ...wf,
+    ...flow,
     filter_action: "/",
     active: "home",
-    so_lop: lops.length,
-    da_bao,
-    chua_bao,
     tuan_hien_tai: tuan ? tuanLabel(tuan) : "—",
     status_label: tuan ? TT_LABEL[status || "nhap"] : "",
     chart,
@@ -522,8 +548,10 @@ function reportPage(
   const isCatalog = (event: Dict) => event.tieu_chi_id != null && event.tieu_chi_id !== "";
   const sk: Record<string, Dict[]> = {};
   for (const [loai] of LOAI_NN) sk[loai] = loaded.sk.filter((event) => event.loai === loai && !isCatalog(event));
+  const weekDays = tuan ? weekDayOptions(tuan) : [];
+  const names = current ? classNameHints(con, n, Number(current.id)) : [];
   view(env, req, res, "bao_cao_tuan.html", {
-    ...ctx(), ...wf, active: "bc_tuan", filter_action: "/bao-cao-tuan",
+    ...ctx(), ...wf, ...attachWeekFlow(wf, n), active: "bc_tuan", filter_action: "/bao-cao-tuan",
     extra_q: current ? [["lop_id", String(current.id)]] : [], lops, current, reported,
     locked: locked(tuan) || Boolean(submitted?.recovery),
     status: loaded.bc ? (loaded.bc.trang_thai === "da_gui" ? "Đã hoàn tất" : "Nháp") : "Chưa nhập",
@@ -531,6 +559,9 @@ function reportPage(
     thai_do: loaded.sk.filter((event) => event.loai === "thai_do" && !isCatalog(event)),
     vp: loaded.sk.filter((event) => isCatalog(event) || event.loai === "vp"),
     tieu_chi_nn: catalogTieuChi(con, n),
+    week_days: weekDays,
+    name_hints: names,
+    click_entry_json: JSON.stringify({ days: weekDays, names }),
     errors: submitted?.parsed.errors ?? {}, error_summary: submitted?.message || "",
   });
 }
@@ -599,6 +630,7 @@ app.get("/cham-tuan", (req, res) => {
   view(env, req, res, "cham.html", {
     ...ctx(),
     ...wf,
+    ...attachWeekFlow(wf, namId()),
     active: "cham",
     tuan,
     years: wf.years,
@@ -634,18 +666,28 @@ app.post("/cham-tuan", (req, res) => {
   res.redirect(`/cham-tuan?${new URLSearchParams({ nam_id: String(n), week_start: f.week_start || "", tuan_id: f.tuan_id, lop_id: f.lop_id, nam: f.nam || "", thang: f.thang || "" })}`);
 });
 
+function weekReturnQuery(f: Record<string, string>) {
+  return new URLSearchParams({
+    nam_id: f.nam_id || "",
+    tuan_id: f.tuan_id || "",
+    week_start: f.week_start || "",
+    nam: f.nam || "",
+    thang: f.thang || "",
+    ...(f.lop_id ? { lop_id: f.lop_id } : {}),
+  }).toString();
+}
+
 app.post("/chot-tuan", (req, res) => {
   const f = form(req);
-  const n = postedNam(req);
-  requireOwned(con, "tuan", Number(f.tuan_id), n);
   try {
+    const n = postedNam(req);
+    requireOwned(con, "tuan", Number(f.tuan_id), n);
     setTuanStatus(con, n, Number(f.tuan_id), Number(f.revision), f.trang_thai, f.reason || "");
     flash(res, "Đã cập nhật trạng thái tuần");
   } catch (e) {
-    if (e instanceof WorkflowError) throw e;
-    throw new WorkflowError(400, e instanceof Error ? e.message : String(e));
+    flash(res, e instanceof Error ? e.message : String(e), "error");
   }
-  res.redirect(`/ket-qua-tuan?tuan_id=${f.tuan_id}`);
+  res.redirect(`/ket-qua-tuan?${weekReturnQuery(f)}`);
 });
 
 app.get("/khen", (req, res) => {
@@ -781,6 +823,7 @@ app.get("/ket-qua-tuan", (req, res) => {
   view(env, req, res, "xep.html", {
     ...ctx(),
     ...wf,
+    ...attachWeekFlow(wf, namId()),
     active: "xep",
     tuan,
     years: wf.years,
@@ -830,7 +873,15 @@ app.get("/xuat/bao-cao", async (req, res) => {
   const request = exportRequest(req);
   const tables = reportTables(con, namId(), request);
   const filename = reportFilename(request, format === "docx" ? "docx" : "xlsx");
-  if (format === "print") return view(env, req, res, "report_print.html", { table: tables[0], generated_at: new Date().toLocaleString("vi-VN"), desktop: desktopFlag() });
+  if (format === "print") {
+    return view(env, req, res, "report_print.html", {
+      table: tables[0],
+      generated_at: new Date().toLocaleString("vi-VN"),
+      desktop: desktopFlag(),
+      download_xlsx: withFormat(req, "xlsx"),
+      download_docx: withFormat(req, "docx"),
+    });
+  }
   if (format === "docx") return sendAttachment(res, await documentBuffer(tables), "application/vnd.openxmlformats-officedocument.wordprocessingml.document", filename);
   if (format !== "xlsx") throw new WorkflowError(400, "Định dạng xuất không hợp lệ.");
   return sendAttachment(res, await workbookBuffer(tables), "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", filename);
@@ -841,6 +892,16 @@ app.get("/xuat/loi-hs", async (req, res) => {
   if (!Number.isSafeInteger(tuanId) || tuanId < 1) throw new WorkflowError(400, "Tuần xuất không hợp lệ.");
   const week = requireOwned(con, "tuan", tuanId, n);
   const tables = violationTables(con, n, tuanId);
+  const format = String(req.query.format || "xlsx");
+  if (format === "print") {
+    return view(env, req, res, "report_print.html", {
+      table: tables[0],
+      generated_at: new Date().toLocaleString("vi-VN"),
+      desktop: desktopFlag(),
+      download_xlsx: withFormat(req, "xlsx"),
+    });
+  }
+  if (format !== "xlsx") throw new WorkflowError(400, "Định dạng xuất không hợp lệ.");
   return sendAttachment(
     res,
     await workbookBuffer(tables),
@@ -860,6 +921,7 @@ app.get("/xuat/ban-in", async (req, res) => {
       ban_in: true,
       generated_at: new Date().toLocaleString("vi-VN"),
       desktop: desktopFlag(),
+      download_xlsx: withFormat(req, "xlsx"),
     });
   }
   if (format !== "xlsx") throw new WorkflowError(400, "Định dạng xuất không hợp lệ.");
@@ -897,13 +959,20 @@ app.get("/bao-cao/lop/in", (req, res) => {
     lop_id: Number(req.query.lop_id),
     blank: String(req.query.blank || "") === "1",
   });
-  view(env, req, res, "class_report_print.html", { doc, desktop: desktopFlag() });
+  const q = requestQuery(req).toString();
+  view(env, req, res, "class_report_print.html", {
+    doc,
+    desktop: desktopFlag(),
+    download_docx: `/bao-cao/lop/word${q ? `?${q}` : ""}`,
+  });
 });
 
 app.get("/bao-cao", (req, res) => {
   const n = namId();
+  const wf = weekFilter(con, n, req.query as Record<string, string>);
   view(env, req, res, "baocao.html", {
-    ...ctx(), active: "bc", tuans: listTuan(con, n), months: monthsOf(con, n),
+    ...ctx(), ...wf, ...attachWeekFlow(wf, n), active: "bc",
+    tuans: listTuan(con, n), months: monthsOf(con, n),
     lops: listLop(con, n), hks: [["1", "Học kỳ I"], ["2", "Học kỳ II"]], models: MODELS,
     hoi_hoc: listMilestones(con, n, "hoi_hoc"),
     tam_ket: getTamKet(con, n) ?? null,
@@ -1165,19 +1234,17 @@ app.use((req, res) => {
 
 app.use((err: unknown, req: express.Request, res: express.Response, _next: express.NextFunction) => {
   const message = err instanceof Error ? err.message : String(err);
-  res.status(err instanceof WorkflowError ? err.status : 500);
-  if (req.method === "POST") {
-    return res.type("html").send(env.renderString(
-      `<!doctype html><html lang="vi"><meta charset="utf-8"><title>Không thể lưu</title>
-      <h1>Không thể lưu</h1><p>{{ message | escape }}</p>
-      <p>Dữ liệu đã gửi được giữ bên dưới ở chế độ chỉ đọc. Sao chép nội dung trước khi quay lại; không gửi đè sang năm học khác.</p>
-      <label for="submitted">Nội dung đã gửi</label><br>
-      <textarea id="submitted" readonly rows="24" cols="100">{{ submitted | escape }}</textarea>
-      <p><a href="/">Về tổng quan</a></p></html>`,
-      { message, submitted: JSON.stringify(req.body ?? {}, null, 2) },
-    ));
+  const status = err instanceof WorkflowError ? err.status : 500;
+  if (status === 404 && req.method === "GET") {
+    res.status(404);
+    return view(env, req, res, "not_found.html", {
+      ...ctx(),
+      active: "",
+      requested_path: req.originalUrl,
+    });
   }
-  res.type("text").send(message);
+  flash(res, message, "error");
+  return res.redirect(localBack(req));
 });
 export function startServer(port = Number(process.env.PORT || 5050)) {
   const { promise, resolve, reject } = Promise.withResolvers();

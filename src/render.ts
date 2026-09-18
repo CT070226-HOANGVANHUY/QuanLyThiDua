@@ -116,9 +116,9 @@ class FlaskLoader extends nunjucks.Loader {
 }
 
 export function createEnv(views: string) {
-  const env = new nunjucks.Environment(new FlaskLoader(views));
+  const env = new nunjucks.Environment(new FlaskLoader(views), { autoescape: true });
   env.addGlobal("url_for", urlFor);
-  env.addFilter("tojson", (v: unknown) => JSON.stringify(v));
+  env.addFilter("tojson", (v: unknown) => new nunjucks.runtime.SafeString(JSON.stringify(v)));
   env.addFilter("int", (v: unknown) => Math.trunc(Number(v || 0)));
   env.addGlobal("number", (v: unknown) => Number(v ?? 0));
   env.addFilter("format", (fmt: string, v: unknown) => {
@@ -136,7 +136,9 @@ export function createEnv(views: string) {
 }
 
 export function view(env: nunjucks.Environment, req: Request, res: Response, name: string, ctx: Record<string, unknown>) {
-  const flashes: string[] = (req as Request & { flashMsg?: string[] }).flashMsg ?? [];
+  const tagged = req as Request & { flashMsg?: string[]; flashKind?: string };
+  const flashes: string[] = tagged.flashMsg ?? [];
   env.addGlobal("get_flashed_messages", () => flashes);
+  env.addGlobal("flash_kind", tagged.flashKind === "error" ? "error" : "ok");
   res.send(env.render(name, ctx));
 }

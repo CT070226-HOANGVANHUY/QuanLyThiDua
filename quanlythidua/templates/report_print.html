@@ -10,8 +10,18 @@
     h1 { text-align: center; font-size: 18pt; margin: 0 0 8px; }
     h2 { font-family: "Times New Roman", Times, serif; font-size: 13pt; margin: 12px 0 6px; }
     p { margin: 4px 0; }
-    .actions { display: flex; justify-content: center; gap: 8px; margin: 14px 0; }
-    button { padding: 8px 14px; }
+    .preview-lead { text-align: center; color: #333; margin: 10px 12px 0; font-family: "Be Vietnam Pro", "Segoe UI", sans-serif; font-size: 12pt; }
+    .actions { display: flex; justify-content: center; flex-wrap: wrap; gap: 8px; margin: 10px 0 14px; }
+    .actions button, .actions a {
+      font: 12pt "Be Vietnam Pro", "Segoe UI", sans-serif;
+      padding: 8px 14px;
+      color: #111;
+      background: #f3f7fb;
+      border: 1px solid #b7c7d6;
+      border-radius: 6px;
+      text-decoration: none;
+      cursor: pointer;
+    }
     table { width: 100%; border-collapse: collapse; margin-top: 12px; font-size: 9pt; font-family: "Times New Roman", Times, serif; }
     th, td { border: 1px solid #333; padding: 4px 5px; vertical-align: top; }
     th { background: #e8eef4; text-align: center; }
@@ -20,7 +30,7 @@
     .ban-in .blocks { display: flex; gap: 10px; align-items: flex-start; }
     .ban-in .blocks .block { flex: 1; min-width: 0; }
     .ban-in table { font-size: 8pt; margin-top: 4px; }
-    @media print { .actions { display: none; } }
+    @media print { .actions, .preview-lead { display: none !important; } }
   </style>
 </head>
 <body class="{% if ban_in %}ban-in{% endif %}">
@@ -29,13 +39,13 @@
   {% if tables[0].source %}<p>{{ tables[0].source }}</p>{% endif %}
   {% for note in tables[0].notes %}<p>{{ note }}</p>{% endfor %}
   <p class="meta">Tạo lúc {{ generated_at }}</p>
-  <div class="actions"><button type="button" onclick="window.print()">In báo cáo</button>{% if desktop %}<button type="button" onclick="window.desktop && window.desktop.openPrint(location.href)">Mở bản in trong trình duyệt</button>{% endif %}<button type="button" onclick="history.back()">Quay lại</button></div>
+  {% include "print_actions.html" %}
   <div class="blocks">
     {% for table in tables %}
     <div class="block">
       <h2>{{ table.title }}</h2>
       <table>
-        <thead><tr>{% for col in table.columns %}<th>{{ col[1] }}</th>{% endfor %}</tr></thead>
+        <thead><tr>{% for col in table.columns %}<th>{% if col[1] %}{{ col[1] }}{% elif col[0]=='gvcn_bonus' %}Thưởng CN{% endif %}</th>{% endfor %}</tr></thead>
         <tbody>{% for row in table.rows %}<tr>{% for col in table.columns %}<td>{{ row[col[0]] if row[col[0]] != null else '' }}</td>{% endfor %}</tr>{% endfor %}</tbody>
       </table>
     </div>
@@ -46,9 +56,9 @@
   {% if table.source %}<p>{{ table.source }}</p>{% endif %}
   {% for note in table.notes %}<p>{{ note }}</p>{% endfor %}
   <p class="meta">Tạo lúc {{ generated_at }}</p>
-  <div class="actions"><button type="button" onclick="window.print()">In báo cáo</button>{% if desktop %}<button type="button" onclick="window.desktop && window.desktop.openPrint(location.href)">Mở bản in trong trình duyệt</button>{% endif %}<button type="button" onclick="history.back()">Quay lại</button></div>
+  {% include "print_actions.html" %}
   <table>
-    <thead><tr>{% for col in table.columns %}<th>{{ col[1] }}</th>{% endfor %}</tr></thead>
+    <thead><tr>{% for col in table.columns %}<th>{% if col[1] %}{{ col[1] }}{% elif col[0]=='gvcn_bonus' %}Thưởng CN{% endif %}</th>{% endfor %}</tr></thead>
     <tbody>{% for row in table.rows %}<tr>{% for col in table.columns %}<td>{{ row[col[0]] if row[col[0]] != null else '' }}</td>{% endfor %}</tr>{% endfor %}</tbody>
   </table>
   {% endif %}

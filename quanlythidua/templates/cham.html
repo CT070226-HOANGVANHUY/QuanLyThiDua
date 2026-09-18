@@ -5,6 +5,8 @@
   <h1 class="page-title">Xem điểm lớp</h1>
   {% include "week_filter.html" %}
 </div>
+{% include "week_flow.html" %}
+<p class="page-sub">Trang này để xem điểm một lớp hoặc điều chỉnh nề nếp ngoài phiếu nhập. Việc hàng tuần vẫn là Nhập tuần → Chốt → Công bố.</p>
 
 {% if tuan and current %}
 <form class="class-picker" method="get" action="/cham-tuan">
@@ -66,7 +68,7 @@
   </div>
 
   {% if not locked and selection.tuan_id %}
-  <form method="post" class="adjust-form" data-dirty-guard>
+  <form method="post" class="adjust-form" data-dirty-guard data-stepper-form>
     <input type="hidden" name="nam_id" value="{{ nam.id }}">
     <input type="hidden" name="tuan_id" value="{{ selection.tuan_id }}">
     <input type="hidden" name="week_start" value="{{ selection.week_start }}">

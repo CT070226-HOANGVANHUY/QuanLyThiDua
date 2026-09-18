@@ -5,7 +5,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
 import { connect, initDb, get, all, run, setActiveNam, transaction } from '../src/db.ts';
-import { initPlan, saveReport, saveChamTay, loadReport, deleteTieuChi, parseReport, scoreWeek, setTuanStatus, catalogTieuChi } from '../src/plan.ts';
+import { initPlan, saveReport, saveChamTay, loadReport, deleteTieuChi, parseReport, scoreWeek, setTuanStatus, catalogTieuChi, weekDayOptions, classNameHints } from '../src/plan.ts';
 import { initPeriods, periodTable } from '../src/periods.ts';
 import { feed, initConduct, savePenalty } from '../src/conduct.ts';
 import { buildClassReport } from '../src/report-data.ts';
@@ -121,7 +121,7 @@ test('cross-year writes fail and referenced criteria cannot be deleted', () => {
   } finally { db.close(); }
 });
 
-import { weekFilter, resolveWeekForWrite } from '../src/plan.ts';
+import { weekFilter, resolveWeekForWrite, weekFlow } from '../src/plan.ts';
 
 function calendarFixture() {
   const db = fixture();
@@ -524,6 +524,78 @@ test('class Word uses saved report rows and blank template does not write', asyn
     assert.equal(blank.notice, 'MẪU TRỐNG');
     assert.equal(serializeTables(db), before);
     assert.throws(() => buildClassReport(db, 1, { tuan_id: Number(week.id), lop_id: 99 }), { status: 404 });
+  } finally { db.close(); }
+});
+
+test('week day options are Friday to Thursday click labels', () => {
+  const days = weekDayOptions({ ngay_bd: '2026-09-11', ngay_kt: '2026-09-17' });
+  assert.deepEqual(days.map((d) => d.short), ['T6', 'T7', 'CN', 'T2', 'T3', 'T4', 'T5']);
+  assert.equal(days[0].value, '2026-09-11');
+  assert.equal(days[6].value, '2026-09-17');
+  assert.equal(days[2].label, 'CN 13/09');
+  assert.deepEqual(weekDayOptions({}), []);
+});
+
+test('weekFlow keeps nhập current until every class is submitted', () => {
+  const calendar = { ngay_bd: '2026-09-01', ngay_kt: '2027-05-28' };
+  const nhap = weekFlow({
+    namId: 1, soLop: 30, daBao: 12, year: 2026, month: 9,
+    weekStart: '2026-09-11', tuanId: 4, calendar,
+    tuan: { id: 4, ngay_bd: '2026-09-11', ngay_kt: '2026-09-17', calendar_no: 2, trang_thai: 'nhap' },
+  });
+  assert.equal(nhap.current_key, 'nhap');
+  assert.equal(nhap.steps[0].state, 'current');
+  assert.equal(nhap.steps[1].state, 'todo');
+  assert.equal(nhap.chua_bao, 18);
+  assert.equal(nhap.week_range, '11–17/09');
+  assert.equal(nhap.next.label, 'Nhập tuần');
+  assert.match(nhap.prev_q, /week_start=2026-09-04/);
+  assert.match(nhap.next_q, /week_start=2026-09-18/);
+  const ready = weekFlow({
+    namId: 1, soLop: 30, daBao: 30, year: 2026, month: 9,
+    weekStart: '2026-09-11', tuanId: 4, calendar,
+    tuan: { id: 4, ngay_bd: '2026-09-11', ngay_kt: '2026-09-17', calendar_no: 2, trang_thai: 'nhap' },
+  });
+  assert.equal(ready.current_key, 'chot');
+  assert.equal(ready.steps[0].state, 'done');
+  assert.equal(ready.next.label, 'Xếp hạng và chốt');
+  const chot = weekFlow({
+    namId: 1, soLop: 30, daBao: 30, year: 2026, month: 9,
+    weekStart: '2026-09-11', tuanId: 4, calendar,
+    tuan: { id: 4, ngay_bd: '2026-09-11', ngay_kt: '2026-09-17', calendar_no: 2, trang_thai: 'chot' },
+  });
+  assert.equal(chot.current_key, 'cong_bo');
+  assert.equal(chot.next.label, 'Công bố tuần');
+  const published = weekFlow({
+    namId: 1, soLop: 30, daBao: 30, year: 2026, month: 9,
+    weekStart: '2026-09-11', tuanId: 4, calendar,
+    tuan: { id: 4, ngay_bd: '2026-09-11', ngay_kt: '2026-09-17', calendar_no: 2, trang_thai: 'cong_bo' },
+  });
+  assert.equal(published.current_key, 'in');
+  assert.equal(published.steps[3].state, 'current');
+  assert.equal(published.next.href, '/bao-cao');
+  const first = weekFlow({
+    namId: 1, soLop: 1, daBao: 0, year: 2026, month: 8,
+    weekStart: '2026-08-28', calendar,
+    tuan: { ngay_bd: '2026-08-28', ngay_kt: '2026-09-03', calendar_no: 1, trang_thai: 'nhap' },
+  });
+  assert.equal(first.prev_q, '');
+});
+
+test('class name hints reuse names already entered for that class', () => {
+  const db = calendarFixture();
+  try {
+    run(db, "INSERT INTO lop(id,nam_hoc_id,ten,khoi,nhom,si_so) VALUES (1,1,'10A1',10,1,30),(2,1,'10A2',10,1,30)");
+    const week = transaction(db, () => resolveWeekForWrite(db, 1, { week_start: '2026-09-11' }));
+    saveReport(db, 1, { tuan_id: Number(week.id) }, 1, 0, parseReport(reportForm({
+      nghi_0_ho_ten: ' Nguyễn Văn A ', nghi_0_ngay: '2026-09-11',
+      di_muon_0_ho_ten: 'Trần Thị B', di_muon_0_ngay: '2026-09-12', di_muon_0_so_luong: '1',
+    }), week), 'save');
+    saveReport(db, 1, { tuan_id: Number(week.id) }, 2, 0, parseReport(reportForm({
+      nghi_0_ho_ten: 'Lớp khác', nghi_0_ngay: '2026-09-11',
+    }), week), 'save');
+    assert.deepEqual(classNameHints(db, 1, 1), ['Nguyễn Văn A', 'Trần Thị B']);
+    assert.deepEqual(classNameHints(db, 1, 2), ['Lớp khác']);
   } finally { db.close(); }
 });
 

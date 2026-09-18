@@ -280,6 +280,251 @@ function shiftDate(value: string, days: number) {
   return date.toISOString().slice(0, 10);
 }
 
+const WEEKDAY_SHORT = ["CN", "T2", "T3", "T4", "T5", "T6", "T7"];
+
+export type WeekDayOption = { value: string; short: string; label: string };
+
+export function weekDayOptions(week: Dict | undefined): WeekDayOption[] {
+  const start = String(week?.ngay_bd || "");
+  const end = String(week?.ngay_kt || "");
+  if (!start || !end) return [];
+  try {
+    const out: WeekDayOption[] = [];
+    for (let day = start; day <= end; day = shiftDate(day, 1)) {
+      const date = isoDate(day);
+      const short = WEEKDAY_SHORT[date.getUTCDay()];
+      const label = `${short} ${String(date.getUTCDate()).padStart(2, "0")}/${String(date.getUTCMonth() + 1).padStart(2, "0")}`;
+      out.push({ value: day, short, label });
+    }
+    return out;
+  } catch {
+    return [];
+  }
+}
+
+export type WeekFlowStep = {
+  key: "nhap" | "chot" | "cong_bo" | "in";
+  n: number;
+  label: string;
+  hint: string;
+  href: string;
+  state: "done" | "current" | "todo";
+};
+
+export type WeekFlow = {
+  steps: WeekFlowStep[];
+  current_key: WeekFlowStep["key"] | "";
+  q: string;
+  week_no: string;
+  week_range: string;
+  status_label: string;
+  status_key: string;
+  so_lop: number;
+  da_bao: number;
+  chua_bao: number;
+  next: { title: string; text: string; href: string; label: string };
+  prev_q: string;
+  next_q: string;
+};
+
+function vnDay(iso: string) {
+  if (!iso || iso.length < 10) return "";
+  return `${iso.slice(8, 10)}/${iso.slice(5, 7)}`;
+}
+
+function vnRange(start: string, end: string) {
+  if (!start || !end) return "";
+  if (start.slice(5, 7) === end.slice(5, 7) && start.slice(0, 4) === end.slice(0, 4)) {
+    return `${start.slice(8, 10)}–${end.slice(8, 10)}/${start.slice(5, 7)}`;
+  }
+  return `${vnDay(start)} → ${vnDay(end)}`;
+}
+
+function weekQuery(opts: {
+  namId: number;
+  year?: number | string;
+  month?: number | string;
+  weekStart?: string;
+  tuanId?: number;
+}) {
+  const q = new URLSearchParams();
+  if (opts.namId) q.set("nam_id", String(opts.namId));
+  if (opts.year) q.set("nam", String(opts.year));
+  if (opts.month != null && opts.month !== "") q.set("thang", String(Number(opts.month)));
+  if (opts.weekStart) q.set("week_start", opts.weekStart);
+  if (opts.tuanId) q.set("tuan_id", String(opts.tuanId));
+  return q.toString();
+}
+
+function neighborQuery(
+  namId: number,
+  weekStart: string,
+  days: number,
+  calendar?: { ngay_bd?: string; ngay_kt?: string },
+) {
+  if (!weekStart) return "";
+  try {
+    const start = shiftDate(weekStart, days);
+    const end = shiftDate(start, 6);
+    const bd = calendar?.ngay_bd || "";
+    const kt = calendar?.ngay_kt || "";
+    if (bd && end < bd) return "";
+    if (kt && start > kt) return "";
+    return weekQuery({
+      namId,
+      year: Number(start.slice(0, 4)),
+      month: Number(start.slice(5, 7)),
+      weekStart: start,
+    });
+  } catch {
+    return "";
+  }
+}
+
+export function weekFlow(input: {
+  namId: number;
+  tuan?: Dict;
+  soLop: number;
+  daBao: number;
+  year?: number;
+  month?: number;
+  weekStart?: string;
+  tuanId?: number;
+  calendar?: { ngay_bd?: string; ngay_kt?: string };
+}): WeekFlow {
+  const tuan = input.tuan;
+  const start = String(input.weekStart || tuan?.ngay_bd || "");
+  const end = String(tuan?.ngay_kt || (start ? shiftDate(start, 6) : ""));
+  const tuanId = input.tuanId || (tuan?.id != null ? Number(tuan.id) : undefined);
+  const year = input.year ?? (tuan?.nam != null ? Number(tuan.nam) : start ? Number(start.slice(0, 4)) : undefined);
+  const month = input.month ?? (tuan?.thang != null ? Number(tuan.thang) : start ? Number(start.slice(5, 7)) : undefined);
+  const q = weekQuery({ namId: input.namId, year, month, weekStart: start, tuanId });
+  const soLop = Math.max(0, Number(input.soLop) || 0);
+  const daBao = Math.max(0, Number(input.daBao) || 0);
+  const chuaBao = Math.max(0, soLop - daBao);
+  const status = String(tuan?.trang_thai || "nhap");
+  const allDone = soLop > 0 && chuaBao === 0;
+  let current: WeekFlowStep["key"] = "nhap";
+  if (soLop > 0 && allDone && status === "nhap") current = "chot";
+  else if (status === "chot") current = "cong_bo";
+  else if (status === "cong_bo") current = "in";
+  const stateOf = (key: WeekFlowStep["key"]): WeekFlowStep["state"] => {
+    const order = ["nhap", "chot", "cong_bo", "in"];
+    const i = order.indexOf(key);
+    const c = order.indexOf(current);
+    if (i < c) return "done";
+    if (i === c) return "current";
+    return "todo";
+  };
+  const nhapHref = `/bao-cao-tuan${q ? `?${q}` : ""}`;
+  const xepHref = `/ket-qua-tuan${q ? `?${q}` : ""}`;
+  const inHref = "/bao-cao";
+  const steps: WeekFlowStep[] = [
+    {
+      key: "nhap",
+      n: 1,
+      label: "Nhập tuần",
+      hint: soLop ? `${daBao}/${soLop} lớp` : "Chưa có lớp",
+      href: nhapHref,
+      state: stateOf("nhap"),
+    },
+    {
+      key: "chot",
+      n: 2,
+      label: "Chốt tuần",
+      hint: status === "chot" || status === "cong_bo" ? "Đã chốt" : allDone ? "Sẵn sàng chốt" : "Nhập đủ lớp đã",
+      href: xepHref,
+      state: stateOf("chot"),
+    },
+    {
+      key: "cong_bo",
+      n: 3,
+      label: "Công bố",
+      hint: status === "cong_bo" ? "Đã công bố" : status === "chot" ? "Sẵn sàng công bố" : "Sau khi chốt",
+      href: xepHref,
+      state: stateOf("cong_bo"),
+    },
+    {
+      key: "in",
+      n: 4,
+      label: "In bảng",
+      hint: status === "cong_bo" ? "Tải file tuần này" : "Sau khi công bố",
+      href: inHref,
+      state: stateOf("in"),
+    },
+  ];
+  let next = {
+    title: "Nhập tuần đang chọn",
+    text: chuaBao > 0
+      ? `Còn ${chuaBao} lớp chưa hoàn tất. Gõ từ giấy bí thư, sổ thanh niên kiểm tra hoặc tin Zalo.`
+      : "Chọn lớp bên trái, bấm ngày và tên, rồi Hoàn tất lớp.",
+    href: nhapHref,
+    label: "Nhập tuần",
+  };
+  if (soLop <= 0) {
+    next = {
+      title: "Chưa có lớp",
+      text: "Cần danh sách lớp trước khi nhập tuần.",
+      href: "/lop",
+      label: "Thêm lớp",
+    };
+  } else if (current === "chot") {
+    next = {
+      title: "Đã nhập đủ lớp — chốt tuần",
+      text: "Xem xếp hạng, rồi bấm Chốt tuần. Chốt xong còn mở lại được.",
+      href: xepHref,
+      label: "Xếp hạng và chốt",
+    };
+  } else if (current === "cong_bo") {
+    next = {
+      title: "Công bố tuần",
+      text: "Sau khi công bố, số liệu tuần này được khóa. Dùng số đó để tính tháng, hội học và điểm chủ nhiệm.",
+      href: xepHref,
+      label: "Công bố tuần",
+    };
+  } else if (current === "in") {
+    next = {
+      title: "Tuần đã công bố",
+      text: "Tải bảng vi phạm hoặc bảng treo tường. Sang tuần sau thì bấm «Tuần sau».",
+      href: inHref,
+      label: "In và tải file",
+    };
+  }
+  return {
+    steps,
+    current_key: soLop <= 0 ? "" : current,
+    q,
+    week_no: String(tuan?.calendar_no || tuan?.so_tuan || ""),
+    week_range: vnRange(start, end),
+    status_label: TT_LABEL[status] || TT_LABEL.nhap,
+    status_key: status,
+    so_lop: soLop,
+    da_bao: daBao,
+    chua_bao: chuaBao,
+    next,
+    prev_q: neighborQuery(input.namId, start, -7, input.calendar),
+    next_q: neighborQuery(input.namId, start, 7, input.calendar),
+  };
+}
+
+export function classNameHints(con: Db, namId: number, lopId: number): string[] {
+  return all(con, `
+    SELECT ho_ten FROM (
+      SELECT TRIM(n.ho_ten) AS ho_ten FROM nghi_hoc n
+        JOIN bao_cao_tuan b ON b.id = n.bao_cao_id
+        JOIN tuan t ON t.id = b.tuan_id
+        WHERE t.nam_hoc_id=? AND b.lop_id=?
+      UNION
+      SELECT TRIM(s.ho_ten) AS ho_ten FROM su_kien s
+        JOIN bao_cao_tuan b ON b.id = s.bao_cao_id
+        JOIN tuan t ON t.id = b.tuan_id
+        WHERE t.nam_hoc_id=? AND b.lop_id=?
+    ) WHERE ho_ten IS NOT NULL AND ho_ten != ''
+    ORDER BY ho_ten COLLATE NOCASE
+    LIMIT 200
+  `, [namId, lopId, namId, lopId]).map((row) => String(row.ho_ten));
+}
+
 function fridayOf(value: string) {
   return shiftDate(value, -(isoDate(value).getUTCDay() + 2) % 7);
 }
