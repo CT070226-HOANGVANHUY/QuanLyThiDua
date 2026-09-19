@@ -1,44 +1,35 @@
 {% extends "base.html" %}
-{% block title %}Báo cáo và xuất{% endblock %}
+{% block title %}In / xuất{% endblock %}
 {% block body %}
-<h1 class="page-title">In và tải file</h1>
+<h1 class="page-title">In / xuất</h1>
 {% include "week_flow.html" %}
-<p class="page-sub">Bấm <b>Xem trước</b> để kiểm tra bảng trên màn hình. Đúng rồi mới In hoặc Tải Excel / Word. «Chỉ tuần đã công bố» dùng họp chính thức.</p>
-<div class="guide">
-  <p>Hay dùng nhất: <b>bảng vi phạm theo lớp</b> và <b>bảng treo tường</b> của tuần vừa công bố. Xem trước rồi mới tải.</p>
-</div>
 <div class="two">
   <div class="card">
-    <h2>Bảng vi phạm theo lớp</h2>
-    <p class="hint">Một file Excel, xếp theo thứ tự lớp rồi học sinh.</p>
+    <h2>Vi phạm theo lớp</h2>
     <form class="form-grid" method="get" action="{{ url_for('xuat_loi_hs') }}">
       <div class="field"><label>Tuần</label><select name="tuan_id">{% for week in tuans %}<option value="{{ week.id }}">Tuần {{ week.so_tuan }} · {{ week.ngay_bd or 'chưa gán ngày' }}</option>{% endfor %}</select></div>
       <div class="toolbar">
-        <button class="btn" type="submit" name="format" value="print">Xem trước</button>
-        <button class="btn-gold" type="submit" name="format" value="xlsx">Tải Excel</button>
+        <button class="btn" type="submit" name="format" value="print">Tải / In</button>
       </div>
     </form>
   </div>
   <div class="card">
-    <h2>Bảng treo tường (tuần)</h2>
-    <p class="hint">Giống bảng in nề nếp / học tập đang treo ở trường.</p>
+    <h2>Bảng treo tường</h2>
     <form class="form-grid" method="get" action="{{ url_for('xuat_ban_in') }}">
       <div class="field"><label>Tuần</label><select name="tuan_id">{% for week in tuans %}<option value="{{ week.id }}">Tuần {{ week.so_tuan }} · {{ week.ngay_bd or 'chưa gán ngày' }}</option>{% endfor %}</select></div>
       <div class="toolbar">
-        <button class="btn" type="submit" name="format" value="print">Xem trước</button>
-        <button class="btn-gold" type="submit" name="format" value="xlsx">Tải Excel</button>
+        <button class="btn" type="submit" name="format" value="print">Tải / In</button>
       </div>
     </form>
   </div>
   <div class="card">
     <h2>Báo cáo chi đoàn</h2>
-    <form class="form-grid" method="get" action="/bao-cao/lop/word">
+    <form class="form-grid" method="get" action="/bao-cao/lop/in">
       <div class="field"><label>Tuần</label><select name="tuan_id">{% for week in tuans %}<option value="{{ week.id }}">Tuần {{ week.so_tuan }} · {{ week.ngay_bd or 'chưa gán ngày' }}</option>{% endfor %}</select></div>
       <div class="field"><label>Lớp</label><select name="lop_id">{% for lop in lops %}<option value="{{ lop.id }}">{{ lop.ten }}</option>{% endfor %}</select></div>
       <input type="hidden" name="nam_id" value="{{ nam.id }}">
       <div class="toolbar">
-        <button class="btn" type="submit" formaction="/bao-cao/lop/in">Xem trước</button>
-        <button class="btn-gold" type="submit">Tải Word</button>
+        <button class="btn" type="submit">Tải / In</button>
         <button class="btn ghost" type="submit" name="blank" value="1">Mẫu trắng</button>
       </div>
     </form>
@@ -53,8 +44,7 @@
       <div class="field"><label>Lớp</label><select name="lop_id"><option value="">—</option>{% for lop in lops %}<option value="{{ lop.id }}">{{ lop.ten }}</option>{% endfor %}</select></div>
       <div class="field"><label>Lấy số liệu</label><select name="view"><option value="preview">Kể cả tuần chưa công bố</option><option value="official">Chỉ tuần đã công bố</option></select></div>
       <div class="toolbar">
-        <button class="btn" type="submit" name="format" value="print">Xem trước</button>
-        <button class="btn-gold" type="submit" name="format" value="xlsx">Tải Excel</button>
+        <button class="btn" type="submit" name="format" value="print">Tải / In</button>
       </div>
     </form>
   </div>
@@ -65,9 +55,7 @@
       <div class="field"><label>Tháng</label><select name="key">{% for month in months %}<option value="{{ month.key }}">{{ month.key }} · HK{{ month.semester }}</option>{% endfor %}</select></div>
       <div class="field"><label>Lấy số liệu</label><select name="view"><option value="official">Chỉ tuần đã công bố</option><option value="preview">Kể cả tuần chưa công bố</option></select></div>
       <div class="toolbar">
-        <button class="btn" type="submit" name="format" value="print">Xem trước</button>
-        <button class="btn-gold" type="submit" name="format" value="xlsx">Tải Excel</button>
-        <button class="btn ghost" type="submit" name="format" value="docx">Tải Word</button>
+        <button class="btn" type="submit" name="format" value="print">Tải / In</button>
       </div>
     </form>
   </div>
@@ -79,9 +67,7 @@
       <div class="field"><label>Mô hình</label><select name="model" data-period-model>{% for value, label in models %}<option value="{{ value }}">{{ label }}</option>{% endfor %}</select></div>
       <div class="field"><label>Lấy số liệu</label><select name="view"><option value="official">Chỉ tuần đã công bố</option><option value="preview">Kể cả tuần chưa công bố</option></select></div>
       <div class="toolbar">
-        <button class="btn" type="submit" name="format" value="print">Xem trước</button>
-        <button class="btn-gold" type="submit" name="format" value="xlsx">Tải Excel</button>
-        <button class="btn ghost" type="submit" name="format" value="docx">Tải Word</button>
+        <button class="btn" type="submit" name="format" value="print">Tải / In</button>
       </div>
     </form>
   </div>
@@ -93,14 +79,33 @@
       <div class="field"><label>Đợt</label>
         <select name="key" data-milestone-key>
           {% for moc in hoi_hoc or [] %}<option value="{{ moc.id }}" data-scope="hoi_hoc">{{ moc.ten }}</option>{% endfor %}
+          {% for moc in tam_kets or [] %}<option value="{{ moc.id }}" data-scope="tam_ket">{{ moc.ten }}</option>{% endfor %}
           {% if tam_ket %}<option value="{{ tam_ket.id }}" data-scope="tam_ket">{{ tam_ket.ten }}</option>{% endif %}
         </select>
       </div>
       <div class="field"><label>Lấy số liệu</label><select name="view"><option value="official">Chỉ tuần đã công bố</option><option value="preview">Kể cả tuần chưa công bố</option></select></div>
       <div class="toolbar">
-        <button class="btn" type="submit" name="format" value="print">Xem trước</button>
-        <button class="btn-gold" type="submit" name="format" value="xlsx">Tải Excel</button>
-        <button class="btn ghost" type="submit" name="format" value="docx">Tải Word</button>
+        <button class="btn" type="submit" name="format" value="print">Tải / In</button>
+      </div>
+    </form>
+  </div>
+  <div class="card">
+    <h2>Cả năm — một file</h2>
+    <form class="form-grid" method="get" action="/xuat/bao-cao">
+      <input type="hidden" name="scope" value="all"><input type="hidden" name="key" value="all"><input type="hidden" name="model" value="monthly">
+      <div class="field"><label>Lấy số liệu</label><select name="view"><option value="preview">Kể cả tuần chưa công bố</option><option value="official">Chỉ tuần đã công bố</option></select></div>
+      <div class="toolbar">
+        <button class="btn" type="submit" name="format" value="print">Tải / In</button>
+      </div>
+    </form>
+  </div>
+  <div class="card">
+    <h2>Nhập file phản ánh</h2>
+    <form class="form-grid" method="post" action="/nhap-tuan/phan-anh">
+      <input type="hidden" name="nam_id" value="{{ nam.id }}">
+      <div class="field full"><label>Đường dẫn file Excel</label><input name="path" placeholder="THEO DOI PHAN ANH_T9 (1).xlsx"></div>
+      <div class="toolbar">
+        <button class="btn" type="submit">Nhập lỗi tuần</button>
       </div>
     </form>
   </div>
@@ -111,9 +116,7 @@
       <div class="field"><label>Mô hình</label><select name="model">{% for value, label in models %}<option value="{{ value }}">{{ label }}</option>{% endfor %}</select></div>
       <div class="field"><label>Lấy số liệu</label><select name="view"><option value="official">Chỉ tuần đã công bố</option><option value="preview">Kể cả tuần chưa công bố</option></select></div>
       <div class="toolbar">
-        <button class="btn" type="submit" name="format" value="print">Xem trước</button>
-        <button class="btn-gold" type="submit" name="format" value="xlsx">Tải Excel</button>
-        <button class="btn ghost" type="submit" name="format" value="docx">Tải Word</button>
+        <button class="btn" type="submit" name="format" value="print">Tải / In</button>
       </div>
     </form>
   </div>

@@ -28,7 +28,7 @@
   <input type="hidden" name="nam" value="{{ year }}">
   <input type="hidden" name="thang" value="{{ month }}">
   <label>Tháng
-    <select name="month_key" title="Tháng chứa thứ Sáu bắt đầu tuần" onchange="const p=this.value.split('-'); this.form.nam.value=p[0]; this.form.thang.value=Number(p[1]); this.form.elements.week_start.disabled=true; this.form.elements.tuan_id.disabled=true; this.form.submit()">
+    <select name="month_key" onchange="const p=this.value.split('-'); this.form.nam.value=p[0]; this.form.thang.value=Number(p[1]); this.form.elements.week_start.disabled=true; this.form.elements.tuan_id.disabled=true; this.form.submit()">
       {% if monthKeys %}
         {% for item in monthKeys %}<option value="{{ item.key }}" {% if item.nam==year and item.thang==month %}selected{% endif %}>{{ item.label }}</option>{% endfor %}
       {% else %}
@@ -36,24 +36,23 @@
       {% endif %}
     </select>
   </label>
-  <label>Tuần thi đua<select name="week_start" title="Từ Thứ Sáu đến hết Thứ Năm tuần sau" onchange="const id=this.form.elements.tuan_id;id.value=this.selectedOptions[0]?.dataset.id||'';id.disabled=!id.value;this.form.submit()">
+  <label>Tuần<select name="week_start" onchange="const id=this.form.elements.tuan_id;id.value=this.selectedOptions[0]?.dataset.id||'';id.disabled=!id.value;this.form.submit()">
     {% if not tuan %}<option value="" selected disabled>Chọn tuần</option>{% endif %}
-    <optgroup label="Thứ Sáu → hết Thứ Năm">
+    <optgroup label="Tuần">
     {% for t in weeks %}{% if not t.legacy %}
-    <option value="{{ t.ngay_bd }}" data-id="{{ t.id or '' }}" {% if tuan and ((t.id and t.id==selection.tuan_id) or (not selection.tuan_id and t.ngay_bd==selection.week_start)) %}selected{% endif %} {% if t.outside %}disabled{% endif %}>{% if t.calendar_no or t.so_tuan %}Tuần {{ t.calendar_no or t.so_tuan }} · {% endif %}{% if t.ngay_bd and t.ngay_kt %}{{ t.ngay_bd.slice(8, 10) }}/{{ t.ngay_bd.slice(5, 7) }}–{{ t.ngay_kt.slice(8, 10) }}/{{ t.ngay_kt.slice(5, 7) }}{% else %}{{ t.ngay_bd }}{% endif %}{% if t.trang_thai=='cong_bo' %} · Đã công bố{% elif t.trang_thai=='chot' %} · Đã chốt{% elif t.id %} · Đang nhập{% endif %}{% if t.ngay_bd and t.ngay_kt and t.ngay_bd.slice(0, 7) != t.ngay_kt.slice(0, 7) %} · Tháng {{ t.ngay_bd.slice(5, 7) }}/{{ t.ngay_bd.slice(0, 4) }}{% endif %}{% if t.outside %} · Ngoài năm học{% endif %}{% if t.conflict %} · Dữ liệu cũ cần đối chiếu{% endif %}</option>
+    <option value="{{ t.ngay_bd }}" data-id="{{ t.id or '' }}" {% if tuan and ((t.id and t.id==selection.tuan_id) or (not selection.tuan_id and t.ngay_bd==selection.week_start)) %}selected{% endif %} {% if t.outside %}disabled{% endif %}>{% if t.calendar_no or t.so_tuan %}Tuần {{ t.calendar_no or t.so_tuan }} · {% endif %}{% if t.ngay_bd and t.ngay_kt %}{{ t.ngay_bd.slice(8, 10) }}/{{ t.ngay_bd.slice(5, 7) }}–{{ t.ngay_kt.slice(8, 10) }}/{{ t.ngay_kt.slice(5, 7) }}{% else %}{{ t.ngay_bd }}{% endif %}{% if t.trang_thai=='cong_bo' %} · Đã công bố{% elif t.trang_thai=='chot' %} · Đã chốt{% elif t.id %} · Đang nhập{% endif %}{% if t.ngay_bd and t.ngay_kt and t.ngay_bd.slice(0, 7) != t.ngay_kt.slice(0, 7) %} · Tháng {{ t.ngay_bd.slice(5, 7) }}/{{ t.ngay_bd.slice(0, 4) }}{% endif %}{% if t.outside %} · Ngoài năm học{% endif %}{% if t.conflict %} · Cũ{% endif %}</option>
     {% endif %}{% endfor %}
     </optgroup>
     {% if weeks | selectattr('legacy') | list | length %}
-    <optgroup label="Dữ liệu cũ cần đối chiếu">
+    <optgroup label="Dữ liệu cũ">
     {% for t in weeks %}{% if t.legacy %}
-    <option value="{{ t.ngay_bd or '' }}" data-id="{{ t.id }}" {% if t.id==selection.tuan_id %}selected{% endif %}>{% if t.calendar_no or t.so_tuan %}Tuần {{ t.calendar_no or t.so_tuan }} · {% endif %}{% if t.ngay_bd and t.ngay_kt %}{{ t.ngay_bd.slice(8, 10) }}/{{ t.ngay_bd.slice(5, 7) }}–{{ t.ngay_kt.slice(8, 10) }}/{{ t.ngay_kt.slice(5, 7) }}{% elif t.ngay_bd %}{{ t.ngay_bd }} → {{ t.ngay_kt }}{% else %}Tuần {{ t.so_tuan }} (chưa có ngày){% endif %} · Dữ liệu cũ cần đối chiếu{% if t.outside %} · Ngoài năm học{% endif %}</option>
+    <option value="{{ t.ngay_bd or '' }}" data-id="{{ t.id }}" {% if t.id==selection.tuan_id %}selected{% endif %}>{% if t.calendar_no or t.so_tuan %}Tuần {{ t.calendar_no or t.so_tuan }} · {% endif %}{% if t.ngay_bd and t.ngay_kt %}{{ t.ngay_bd.slice(8, 10) }}/{{ t.ngay_bd.slice(5, 7) }}–{{ t.ngay_kt.slice(8, 10) }}/{{ t.ngay_kt.slice(5, 7) }}{% elif t.ngay_bd %}{{ t.ngay_bd }} → {{ t.ngay_kt }}{% else %}Tuần {{ t.so_tuan }} (chưa có ngày){% endif %}{% if t.outside %} · Ngoài năm học{% endif %}</option>
     {% endif %}{% endfor %}
     </optgroup>
     {% endif %}
   </select></label>
 </form>
 </details>
-<p class="filter-notice">Mỗi tuần tính từ <b>Thứ Sáu</b> đến hết <b>Thứ Năm</b> tuần sau (đúng mẫu giấy bí thư).</p>
 {% if notice %}<p class="filter-notice" role="status">{{ notice }}</p>{% endif %}
-{% if tuan and (tuan.legacy or tuan.conflict) %}<p class="filter-notice warning">Dữ liệu cũ cần đối chiếu — giữ nguyên tuần đã lưu; cần đối chiếu lịch trước khi dùng cho kỳ chính thức.</p>{% endif %}
+{% if tuan and (tuan.legacy or tuan.conflict) %}<p class="filter-notice warning">Dữ liệu cũ — chỉ xem, chưa chốt được.</p>{% endif %}
 </div>

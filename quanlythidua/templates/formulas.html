@@ -1,64 +1,42 @@
 {% extends "base.html" %}
-{% block title %}Cách tính điểm{% endblock %}
+{% block title %}Công thức{% endblock %}
 {% block body %}
-<h1 class="page-title">Cách tính điểm</h1>
-<p class="page-sub">Chỉ đổi khi Ban chấp hành thống nhất. Mặc định đã khớp sổ Excel nhà trường đang dùng.</p>
+<h1 class="page-title">Công thức</h1>
 
 {% if nam and year_formula %}
 <div class="card">
-  <h3>Điểm miệng chia cho gì?</h3>
-  <p class="hint">Sổ Excel năm cũ chia cho <b>số lần được điểm</b>. Văn bản Word năm nay viết chia cho <b>sĩ số lớp</b>. Cô chọn một cách; không tự đổi.</p>
+  <h3>Điểm miệng chia cho</h3>
   <form method="post" action="/cong-thuc">
     <input type="hidden" name="nam_id" value="{{ nam.id }}">
     <div class="field">
-      <label><input type="radio" name="ktm_divisor" value="count" {% if year_formula.ktm_divisor!='si_so' %}checked{% endif %}> Chia cho số lần có điểm miệng (như sổ Excel) — <b>nên giữ</b></label>
+      <label><input type="radio" name="ktm_divisor" value="count" {% if year_formula.ktm_divisor!='si_so' %}checked{% endif %}> Số lần có điểm miệng</label>
     </div>
     <div class="field" style="margin-top:8px">
-      <label><input type="radio" name="ktm_divisor" value="si_so" {% if year_formula.ktm_divisor=='si_so' %}checked{% endif %}> Chia cho sĩ số lớp (như văn bản Word)</label>
+      <label><input type="radio" name="ktm_divisor" value="si_so" {% if year_formula.ktm_divisor=='si_so' %}checked{% endif %}> Sĩ số lớp</label>
     </div>
 
-    <h3 style="margin-top:20px">Hội học tháng 11 và tháng 3</h3>
-    <p class="hint">Sổ hội học năm cũ chỉ <b>cộng bốn hạng tuần</b>, không nhân đôi. Nếu cô muốn cộng thêm văn nghệ / thể thao thì chọn dòng thứ hai.</p>
+    <h3 style="margin-top:20px">Hội học</h3>
     <div class="field" style="margin-top:8px">
-      <label><input type="radio" name="hoi_hoc_double" value="none" {% if year_formula.hoi_hoc_double!='hdtt_only' and year_formula.hoi_hoc_double!='week_xt' %}checked{% endif %}> Cộng bốn hạng tuần, không nhân đôi — <b>như sổ Excel</b></label>
+      <label><input type="radio" name="hoi_hoc_double" value="none" {% if year_formula.hoi_hoc_double=='none' %}checked{% endif %}> Cộng bốn hạng tuần</label>
     </div>
     <div class="field" style="margin-top:8px">
-      <label><input type="radio" name="hoi_hoc_double" value="hdtt_only" {% if year_formula.hoi_hoc_double=='hdtt_only' %}checked{% endif %}> Cộng bốn hạng tuần, rồi cộng thêm văn nghệ / thể thao (nhân đôi phần này)</label>
+      <label><input type="radio" name="hoi_hoc_double" value="hdtt" {% if year_formula.hoi_hoc_double=='hdtt' %}checked{% endif %}> Cộng bốn hạng tuần + văn nghệ / thể thao</label>
     </div>
     <div class="field" style="margin-top:8px">
-      <label><input type="radio" name="hoi_hoc_double" value="week_xt" {% if year_formula.hoi_hoc_double=='week_xt' %}checked{% endif %}> Nhân đôi hạng từng tuần — thứ tự lớp thường không đổi, chỉ xem</label>
+      <label><input type="radio" name="hoi_hoc_double" value="hdtt_only" {% if year_formula.hoi_hoc_double=='hdtt_only' %}checked{% endif %}> Cộng bốn hạng tuần + văn nghệ / thể thao ×2</label>
     </div>
-    <p style="margin:16px 0 0"><button type="submit" class="btn">Lưu cách tính</button></p>
+    <div class="field" style="margin-top:8px">
+      <label><input type="radio" name="hoi_hoc_double" value="week_xt" {% if year_formula.hoi_hoc_double=='week_xt' %}checked{% endif %}> Nhân đôi hạng tuần</label>
+    </div>
+    <h3 style="margin-top:20px">Học kỳ</h3>
+    <div class="field" style="margin-top:8px">
+      <label><input type="radio" name="hk_basis" value="dots" {% if year_formula.hk_basis=='dots' %}checked{% endif %}> Tổng xếp thứ theo đợt 8 tuần × 2 + HĐTT</label>
+    </div>
+    <div class="field" style="margin-top:8px">
+      <label><input type="radio" name="hk_basis" value="months" {% if year_formula.hk_basis!='dots' %}checked{% endif %}> Tổng xếp thứ theo tháng × 2 + HĐTT</label>
+    </div>
+    <p style="margin:16px 0 0"><button type="submit" class="btn">Lưu</button></p>
   </form>
 </div>
 {% endif %}
-
-<div class="card howto">
-  <h3>Tuần</h3>
-  <ul>
-    <li>Điểm nề nếp chia sĩ số → hạng nề nếp trong nhóm (lớp chọn riêng, lớp thường riêng).</li>
-    <li>Điểm giờ chia số giờ; điểm miệng chia theo cách đã chọn ở trên. Cộng hai cái → hạng học tập.</li>
-    <li>Cộng hai hạng → hạng tuần. Hai lớp bằng điểm thì cùng hạng (1, 2, 2, 4).</li>
-  </ul>
-  <p><a href="/ket-qua-tuan">Mở xếp hạng tuần</a></p>
-</div>
-<div class="card howto">
-  <h3>Tháng, học kỳ, cả năm</h3>
-  <ul>
-    <li>Tháng: cộng hạng các tuần trong tháng.</li>
-    <li>Học kỳ: tổng hạng các tháng nhân 2, cộng hoạt động tập thể nếu có.</li>
-    <li>Cả năm: hạng học kỳ I + hạng học kỳ II nhân 2.</li>
-    <li><b>Chính thức</b> chỉ lấy tuần đã công bố. <b>Xem trước</b> là tính tạm.</li>
-  </ul>
-  <p><a href="/tong-hop">Mở tháng / học kỳ / năm</a></p>
-</div>
-<div class="card howto">
-  <h3>Điểm chủ nhiệm (thang 20)</h3>
-  <ul>
-    <li>Trừ theo nề nếp lớp, tùy nhóm A / B / C đã gán.</li>
-    <li>Lớp nhất tuần: cô được +0,5; nhì +0,3; ba +0,2.</li>
-    <li>Lỗi nặng của học sinh trừ cô 10 hoặc 15, trừ khi cô phát hiện trước.</li>
-  </ul>
-  <p><a href="/ne-nep-gvcn">Mở điểm chủ nhiệm</a> · <a href="/lop">Gán nhóm A/B/C</a></p>
-</div>
 {% endblock %}

@@ -314,7 +314,7 @@ test('report parser preserves non-contiguous row ids and rejects malformed value
 test('report revision prevents stale overwrite and complete-class does not require bi_thu', () => {
   const db = calendarFixture();
   try {
-    assert.equal(get(db, "PRAGMA user_version")?.user_version, 10);
+    assert.equal(get(db, "PRAGMA user_version")?.user_version, 12);
     run(db, "INSERT INTO lop(id,nam_hoc_id,ten,khoi,nhom,si_so) VALUES (1,1,'10A1',10,1,30)");
     const week = transaction(db, () => resolveWeekForWrite(db, 1, { week_start: '2026-09-11' }));
     const draft = parseReport(reportForm({ nghi_0_ho_ten: 'A' }), week);
@@ -558,14 +558,14 @@ test('weekFlow keeps nhập current until every class is submitted', () => {
   });
   assert.equal(ready.current_key, 'chot');
   assert.equal(ready.steps[0].state, 'done');
-  assert.equal(ready.next.label, 'Xếp hạng và chốt');
+  assert.equal(ready.next.label, 'Xếp hạng');
   const chot = weekFlow({
     namId: 1, soLop: 30, daBao: 30, year: 2026, month: 9,
     weekStart: '2026-09-11', tuanId: 4, calendar,
     tuan: { id: 4, ngay_bd: '2026-09-11', ngay_kt: '2026-09-17', calendar_no: 2, trang_thai: 'chot' },
   });
   assert.equal(chot.current_key, 'cong_bo');
-  assert.equal(chot.next.label, 'Công bố tuần');
+  assert.equal(chot.next.label, 'Công bố');
   const published = weekFlow({
     namId: 1, soLop: 30, daBao: 30, year: 2026, month: 9,
     weekStart: '2026-09-11', tuanId: 4, calendar,

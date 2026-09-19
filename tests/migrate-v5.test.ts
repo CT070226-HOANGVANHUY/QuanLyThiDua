@@ -69,14 +69,14 @@ test("v4 roster migrates to v5 columns, backfill, leftover ap_dung=0 and nhap we
   try {
     assert.equal(get(db, "PRAGMA user_version")?.user_version, 4);
     migrate(db);
-    assert.equal(get(db, "PRAGMA user_version")?.user_version, 10);
-    assert.equal(get(db, "SELECT value FROM app_meta WHERE key='schema_max'")?.value, "10");
+    assert.equal(get(db, "PRAGMA user_version")?.user_version, 12);
+    assert.equal(get(db, "SELECT value FROM app_meta WHERE key='schema_max'")?.value, "12");
     assert.equal(get(db, "SELECT nguong FROM gvcn_ratio_group WHERE nam_hoc_id=1 AND ma='A'")?.nguong, 5);
     assert.equal(get(db, "SELECT nguong FROM gvcn_ratio_group WHERE nam_hoc_id=1 AND ma='B'")?.nguong, 7);
     assert.equal(get(db, "SELECT nguong FROM gvcn_ratio_group WHERE nam_hoc_id=1 AND ma='C'")?.nguong, 10);
-    assert.equal(get(db, "SELECT COUNT(*) AS n FROM lop WHERE gvcn_group_id IS NOT NULL")?.n, 0);
+    assert.ok(Number(get(db, "SELECT COUNT(*) AS n FROM lop WHERE gvcn_group_id IS NOT NULL")?.n) > 0);
     assert.equal(get(db, "SELECT COUNT(*) AS n FROM year_formula WHERE nam_id=1")?.n, 1);
-    assert.equal(get(db, "SELECT ktm_divisor FROM year_formula WHERE nam_id=1")?.ktm_divisor, "count");
+    assert.equal(get(db, "SELECT ktm_divisor FROM year_formula WHERE nam_id=1")?.ktm_divisor, "si_so");
     assert.equal(get(db, "SELECT hk_month_weight FROM year_formula WHERE nam_id=1")?.hk_month_weight, 2);
     for (const col of ["nu", "kt", "loai_hinh", "ap_dung", "gvcn_group_id"]) {
       assert.ok(colNames(db, "lop").includes(col), `lop.${col}`);
@@ -131,7 +131,7 @@ test("leftover 10A7 without da_gui does not 409 chốt after import", () => {
     migrate(db);
     initDb(db);
     initPlan(db);
-    assert.equal(get(db, "PRAGMA user_version")?.user_version, 10);
+    assert.equal(get(db, "PRAGMA user_version")?.user_version, 12);
     for (const col of ["tieu_chi_id", "tap_the", "gvcn_phat_hien", "nguon"]) {
       assert.ok(colNames(db, "su_kien").includes(col), `su_kien.${col}`);
     }
@@ -179,7 +179,7 @@ test("v5 backup is VACUUM INTO beside the db file and skipped for memory", () =>
     assert.ok(get(backup, "SELECT id FROM lop WHERE ten='10A7'"));
     assert.equal(get(backup, "SELECT ten FROM lop WHERE ten='10D1'"), undefined);
     migrate(db);
-    assert.equal(get(db, "PRAGMA user_version")?.user_version, 10);
+    assert.equal(get(db, "PRAGMA user_version")?.user_version, 12);
   } finally {
     backup?.close();
     db.close();

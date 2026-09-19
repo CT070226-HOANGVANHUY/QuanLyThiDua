@@ -5,21 +5,39 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Báo cáo chi đoàn {{ doc.lop }}</title>
   <style>
-    @page { size: A4 portrait; margin: 20mm 20mm 20mm 25mm; }
+    @page {
+      size: A4 portrait;
+      margin: 18mm 18mm 20mm 22mm;
+      @top-left { content: none; }
+      @top-center { content: none; }
+      @top-right { content: none; }
+      @bottom-left { content: none; }
+      @bottom-center { content: none; }
+      @bottom-right { content: none; }
+    }
     html, body { margin: 0; background: #fff; color: #111; }
     body { font-family: "Times New Roman", Times, serif; font-size: 13pt; line-height: 1.25; }
-    .preview-lead { text-align: center; color: #333; margin: 10px 12px 0; font-family: "Be Vietnam Pro", "Segoe UI", sans-serif; font-size: 12pt; }
-    .actions { display: flex; justify-content: center; flex-wrap: wrap; gap: 8px; margin: 12px 0 16px; }
+    .preview-bar {
+      position: sticky; top: 0; z-index: 10;
+      display: flex; align-items: center; justify-content: space-between;
+      gap: 12px; flex-wrap: wrap;
+      background: #0d3a62; color: #fff;
+      padding: 10px 16px;
+      font-family: "Segoe UI", sans-serif;
+    }
+    .preview-lead { margin: 0; font-size: 13px; font-weight: 700; }
+    .actions { display: flex; flex-wrap: wrap; gap: 8px; margin: 0; }
     .actions button, .actions a {
-      font: 12pt "Be Vietnam Pro", "Segoe UI", sans-serif;
+      font: 700 13px "Segoe UI", sans-serif;
       padding: 8px 14px;
-      color: #111;
-      background: #f3f7fb;
+      color: #0d3a62;
+      background: #fff;
       border: 1px solid #b7c7d6;
-      border-radius: 6px;
+      border-radius: 4px;
       text-decoration: none;
       cursor: pointer;
     }
+    .actions .primary { background: #e8b423; color: #1a2f44; border-color: #c49214; }
     .head { display: grid; grid-template-columns: 1fr 1fr; text-align: center; font-weight: 700; text-transform: uppercase; }
     h1 { text-align: center; font-size: 16pt; margin: 14px 0 8px; }
     h2 { font-size: 13pt; margin: 14px 0 6px; }
@@ -32,7 +50,7 @@
     .sign p { margin: 4px 0; }
     .sign .role { text-align: right; font-weight: 700; margin-top: 8px; }
     .sign .name { text-align: right; margin-top: 48px; }
-    @media print { .actions, .preview-lead { display: none !important; } }
+    @media print { .preview-bar { display: none !important; } }
   </style>
 </head>
 <body>

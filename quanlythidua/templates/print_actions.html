@@ -1,8 +1,43 @@
-<p class="preview-lead">Đây là bản xem trước. Kiểm tra số liệu rồi in hoặc tải file.</p>
-<div class="actions">
-  <button type="button" onclick="window.print()">In / Lưu PDF</button>
-  {% if download_xlsx %}<a href="{{ download_xlsx }}">Tải Excel</a>{% endif %}
-  {% if download_docx %}<a href="{{ download_docx }}">Tải Word</a>{% endif %}
-  {% if desktop %}<button type="button" onclick="window.desktop && window.desktop.openPrint(location.href)">Mở bản in trong trình duyệt</button>{% endif %}
-  <button type="button" onclick="history.back()">Quay lại</button>
+<div class="preview-bar">
+  <p class="preview-lead">Kiểm tra bảng, rồi tải hoặc in. Trong hộp thoại in, bỏ chọn «Tiêu đề và chân trang».</p>
+  <div class="actions">
+    <button type="button" class="primary" onclick="printSheet()" title="Trong hộp thoại in, bỏ chọn Tiêu đề và chân trang để ẩn chữ của trình duyệt">In</button>
+    {% if download_xlsx %}<a class="primary" href="{{ download_xlsx }}">Tải Excel</a>{% endif %}
+    {% if download_docx %}<a class="primary" href="{{ download_docx }}">Tải Word</a>{% endif %}
+    <button type="button" onclick="history.back()">Quay lại</button>
+  </div>
 </div>
+<p class="print-stamp" id="print-stamp"></p>
+<style>
+.print-stamp { display: none; }
+@media print {
+  .print-stamp {
+    display: block;
+    position: fixed;
+    right: 6mm;
+    bottom: 4mm;
+    margin: 0;
+    font: 9pt "Times New Roman", Times, serif;
+    color: #333;
+  }
+}
+</style>
+<script>
+function printClock() {
+  var d = new Date();
+  var p = function (n) { return String(n).padStart(2, "0"); };
+  return p(d.getHours()) + ":" + p(d.getMinutes()) + " " + p(d.getDate()) + "/" + p(d.getMonth() + 1) + "/" + d.getFullYear();
+}
+function printSheet() {
+  var stamp = document.getElementById("print-stamp");
+  if (stamp) stamp.textContent = printClock();
+  var prev = document.title;
+  document.title = "\u00a0";
+  function restore() {
+    document.title = prev;
+    window.removeEventListener("afterprint", restore);
+  }
+  window.addEventListener("afterprint", restore);
+  window.print();
+}
+</script>

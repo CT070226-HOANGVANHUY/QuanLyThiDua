@@ -1,12 +1,11 @@
 {% extends "base.html" %}
-{% block title %}Chấm tuần{% endblock %}
+{% block title %}Điểm lớp{% endblock %}
 {% block body %}
 <div class="page-head">
-  <h1 class="page-title">Xem điểm lớp</h1>
+  <h1 class="page-title">Điểm lớp</h1>
   {% include "week_filter.html" %}
 </div>
 {% include "week_flow.html" %}
-<p class="page-sub">Trang này để xem điểm một lớp hoặc điều chỉnh nề nếp ngoài phiếu nhập. Việc hàng tuần vẫn là Nhập tuần → Chốt → Công bố.</p>
 
 {% if tuan and current %}
 <form class="class-picker" method="get" action="/cham-tuan">
@@ -34,25 +33,19 @@
 
   {% if not current.bao_cao %}
   <div class="empty-state">
-    <b>Chưa nhập dữ liệu lớp {{ current.ten }}</b>
-    <p>Hãy nhập tuần này trước khi chấm; điểm và xếp hạng sẽ được tính từ dữ liệu đã nhập.</p>
-    <a class="btn" href="{{ url_for('bao_cao_tuan',nam_id=nam.id,nam=year,thang=month,week_start=selection.week_start,tuan_id=selection.tuan_id,lop_id=current.lop_id) }}">Mở nhập tuần</a>
+    <b>Chưa nhập {{ current.ten }}</b>
+    <a class="btn" href="{{ url_for('bao_cao_tuan',nam_id=nam.id,nam=year,thang=month,week_start=selection.week_start,tuan_id=selection.tuan_id,lop_id=current.lop_id) }}">Nhập tuần</a>
   </div>
   {% else %}
   <div class="score-metrics">
-    <div class="score-metric"><span>TB nề nếp</span><b>{{ "%.3f"|format(current.tb_nn) }}</b><small>NN / sĩ số</small></div>
-    <div class="score-metric"><span>TB giờ học</span><b>{{ "%.3f"|format(current.tb_gio) }}</b></div>
-    <div class="score-metric"><span>TB kiểm tra miệng</span><b>{{ "%.3f"|format(current.tb_ktm) }}</b></div>
-    <div class="score-metric"><span>TB học tập</span><b>{{ "%.3f"|format(current.tb_ht) }}</b></div>
+    <div class="score-metric" title="{{ current.tb_nn }}"><span>TB nề nếp</span><b>{{ "%.3f"|format(current.tb_nn) }}</b></div>
+    <div class="score-metric" title="{{ current.tb_gio }}"><span>TB giờ học</span><b>{{ "%.3f"|format(current.tb_gio) }}</b></div>
+    <div class="score-metric" title="{{ current.tb_ktm }}"><span>TB kiểm tra miệng</span><b>{{ "%.3f"|format(current.tb_ktm) }}</b></div>
+    <div class="score-metric" title="{{ current.tb_ht }}"><span>TB học tập</span><b>{{ "%.3f"|format(current.tb_ht) }}</b></div>
     <div class="score-metric score-rank"><span>Xếp thứ nề nếp</span><b>{{ current.xt_nn if current.xt_nn!=null else '—' }}</b></div>
     <div class="score-metric score-rank"><span>Xếp thứ học tập</span><b>{{ current.xt_ht if current.xt_ht!=null else '—' }}</b></div>
     <div class="score-metric score-rank primary"><span>Xếp thứ chung</span><b>{{ current.xt_chung if current.xt_chung!=null else '—' }}</b></div>
   </div>
-
-  <details class="formula-note">
-    <summary>Cách tính điểm</summary>
-    <p>NN = tổng điểm nề nếp có dấu; TB NN = NN / sĩ số. TB học tập = TB giờ + TB kiểm tra miệng. Các lớp được xếp riêng trong từng nhóm; tổng hai thứ hạng càng thấp càng tốt.</p>
-  </details>
 
   {% if current.missing|length %}<div class="alert error"><b>Chưa đủ điều kiện:</b> {{ current.missing|join('; ') }}</div>{% endif %}
 
@@ -77,7 +70,6 @@
     <input type="hidden" name="thang" value="{{ month }}">
     <input type="hidden" name="revision" value="{{ tuan.revision or 0 }}">
     <h3>Điều chỉnh nề nếp</h3>
-    <p class="muted">Chỉ dùng cho khoản bổ sung ngoài phiếu nhập tuần. Nhập 0 để xóa điều chỉnh đã lưu.</p>
     <div class="adjust-grid">
       <div class="field"><label for="criterion">Tiêu chí</label><select id="criterion" name="tieu_chi_id">{% for tc in tieu_chi %}<option value="{{ tc.id }}">{{ tc.ten }} ({{ tc.diem }}/{{ tc.don_vi }})</option>{% endfor %}</select></div>
       <div class="field"><label for="quantity">Số lượng</label><input id="quantity" name="so_luong" type="number" min="0" step="1" value="1"></div>

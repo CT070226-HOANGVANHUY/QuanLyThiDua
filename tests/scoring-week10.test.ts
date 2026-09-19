@@ -72,6 +72,7 @@ test("addNamHoc inserts exactly one year_formula row and copyFrom copies flags",
     assert.equal(yf.hk_month_weight, 2);
     assert.equal(yf.hoi_hoc_double, "none");
     assert.equal(yf.gvcn_5_1_window, "semester");
+    assert.equal(yf.hk_basis, "months");
     run(db, `UPDATE year_formula SET ktm_divisor='si_so', hk_month_weight=3, hoi_hoc_double='hdtt_only', gvcn_5_1_window='weekly' WHERE nam_id=?`, [namId]);
     const copied = Number(addNamHoc(db, "2028-2029", namId));
     assert.equal(get(db, "SELECT COUNT(*) AS n FROM year_formula WHERE nam_id=?", [copied])?.n, 1);
@@ -80,6 +81,7 @@ test("addNamHoc inserts exactly one year_formula row and copyFrom copies flags",
     assert.equal(dst.hk_month_weight, 3);
     assert.equal(dst.hoi_hoc_double, "hdtt_only");
     assert.equal(dst.gvcn_5_1_window, "weekly");
+    assert.equal(dst.hk_basis, "months");
   } finally { db.close(); }
 });
 

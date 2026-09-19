@@ -1,12 +1,8 @@
 {% extends "base.html" %}
-{% block title %}Công tác chủ nhiệm{% endblock %}
+{% block title %}Chủ nhiệm{% endblock %}
 {% macro number(value) -%}{% if value is none %}—{% elif value is number %}{{ "%.12g"|format(value) }}{% else %}{{ value }}{% endif %}{%- endmacro %}
 {% block body %}
-<h1 class="page-title">Điểm chủ nhiệm</h1>
-<p class="page-sub">{{ nam.ten }} · học kỳ {{ hk }} · thang 20 điểm. Trừ theo nề nếp lớp, cộng thưởng khi lớp vào top 3 tuần.</p>
-<div class="guide">
-  <p>Gán nhóm A/B/C ở Danh sách lớp trước. <b>Chỉ tuần đã công bố</b> dùng họp; <b>xem thử</b> tính cả tuần chưa công bố.</p>
-</div>
+<h1 class="page-title">Chủ nhiệm</h1>
 
 <form class="toolbar" method="get" action="{{ url_for('conduct.index') }}">
   <div class="field"><label for="conduct-hk">Học kỳ</label>
@@ -18,20 +14,19 @@
   <div class="field"><label for="conduct-view">Lấy số liệu</label>
     <select id="conduct-view" name="view" onchange="this.form.submit()">
       <option value="official" {% if resultView=='official' %}selected{% endif %}>Chỉ tuần đã công bố</option>
-      <option value="preview" {% if resultView=='preview' %}selected{% endif %}>Xem thử (kể cả chưa công bố)</option>
+      <option value="preview" {% if resultView=='preview' %}selected{% endif %}>Xem thử</option>
     </select>
   </div>
-  <a class="btn-gold" href="{{ url_for('conduct.export', hk=hk, view=resultView) }}">Xuất Excel</a>
-  <a class="btn ghost" href="{{ url_for('lop') }}">Gán nhóm A/B/C</a>
+  <a class="btn" href="{{ url_for('conduct.export', hk=hk, view=resultView, format='print') }}">Tải / In</a>
+  <a class="btn ghost" href="{{ url_for('lop') }}">Nhóm A/B/C</a>
 </form>
 
 {% if unassigned %}
-<div class="banner danger" style="margin-bottom:12px"><span class="dot">!</span> {{ unassigned }} lớp chưa gán nhóm A/B/C nên chưa ra điểm chủ nhiệm. Sửa ở Danh sách lớp.</div>
+<div class="banner danger" style="margin-bottom:12px"><span class="dot">!</span> {{ unassigned }} lớp chưa gán nhóm A/B/C.</div>
 {% endif %}
 {% if resultView=='official' and not official_ready %}
-<div class="banner danger" style="margin-bottom:12px"><span class="dot">!</span> Còn tuần trong học kỳ chưa công bố nên điểm họp chính thức để trống. Chọn «Xem thử» nếu chỉ muốn nhìn tạm.</div>
+<div class="banner danger" style="margin-bottom:12px"><span class="dot">!</span> Còn tuần chưa công bố. Chọn «Xem thử» để nhìn tạm.</div>
 {% endif %}
-<p class="muted" style="margin-bottom:12px">{{ gvcn_hint }}</p>
 
 <form class="toolbar" method="post" action="{{ url_for('conduct.index', hk=hk, mode='gvcn', view=resultView) }}">
   <input type="hidden" name="nam_id" value="{{ nam.id }}">
@@ -39,14 +34,14 @@
   <input type="hidden" name="action" value="window">
   <div class="field"><label for="gvcn-window">Cách trừ điểm nề nếp</label>
     <select id="gvcn-window" name="gvcn_5_1_window">
-      <option value="semester" {% if gvcn_window!='weekly' %}selected{% endif %}>Cộng cả học kỳ rồi mới trừ (nên giữ)</option>
+      <option value="semester" {% if gvcn_window!='weekly' %}selected{% endif %}>Cộng cả học kỳ rồi trừ</option>
       <option value="weekly" {% if gvcn_window=='weekly' %}selected{% endif %}>Trừ từng tuần rồi cộng</option>
     </select>
   </div>
-  <button class="btn" type="submit">Lưu cửa sổ</button>
+  <button class="btn" type="submit">Lưu</button>
 </form>
 
-{% if not weeks %}<div class="banner danger"><span class="dot">!</span> Chưa có tuần included=1 trong HK{{ hk }}.</div>{% endif %}
+{% if not weeks %}<div class="banner danger"><span class="dot">!</span> Chưa có tuần được tính trong HK{{ hk }}.</div>{% endif %}
 {% if gvcn_rows %}
 <form method="post" action="{{ url_for('conduct.index', hk=hk, mode='gvcn', view=resultView) }}">
   <input type="hidden" name="nam_id" value="{{ nam.id }}">
@@ -82,14 +77,14 @@
           </select>
         </td>
         {% for cell in row.cells %}
-        <td title="{{ cell.source }}">{% if cell.penalty is none %}—{% else %}{{ number(cell.penalty) }}{% if cell.tru_nang %} / nặng {{ number(cell.tru_nang) }}{% endif %}{% if cell.bonus %} / +{{ number(cell.bonus) }}{% endif %}{% if cell.override is not none %}<br><small>Nhập riêng</small>{% endif %}{% endif %}</td>
+        <td class="week-cell" title="{{ cell.source }}">{% if cell.penalty is none %}—{% else %}<span class="wk-p">{{ number(cell.penalty) }}</span>{% if cell.bonus %}<span class="wk-b">+{{ number(cell.bonus) }}</span>{% endif %}{% if cell.tru_nang %}<span class="wk-n">nặng {{ number(cell.tru_nang) }}</span>{% endif %}{% if cell.override is not none %}<br><small>Nhập riêng</small>{% endif %}{% endif %}</td>
         {% endfor %}
         <td>{{ number(row.penalty_hk) }}</td>
         <td>{{ number(row.tru_5_1) }}</td>
         <td>{{ number(row.tru_nang_hk) }}</td>
         <td>{{ number(row.cong_hk) }}</td>
         <td><b>{{ number(row.diem) }}</b></td>
-        <td>{{ row.status }}</td>
+        <td>{% if row.missing_group %}Chưa gán{% elif resultView=='official' and not official_ready %}—{% else %}{{ row.status }}{% endif %}</td>
       </tr>
     {% endfor %}
     </tbody>
@@ -106,11 +101,10 @@
   <input type="hidden" name="nam_id" value="{{ nam.id }}">
   <input type="hidden" name="hk" value="{{ hk }}">
   <input type="hidden" name="action" value="phat_hien_bulk">
-  <div class="card" style="padding:16px;margin-top:16px;overflow:auto">
-    <h2>Lỗi nặng (−30 → trừ 10; −50 → trừ 15)</h2>
-    <p class="muted">Nếu GVCN phát hiện trước thì không trừ 10/15, nhưng −30/−50 vẫn được rút khỏi tổng 5.1.</p>
-    <table class="data">
-      <thead><tr><th>Tuần</th><th>Lớp</th><th>Học sinh</th><th>Lỗi</th><th>|Điểm|</th><th>Quy đổi</th><th>GVCN phát hiện</th></tr></thead>
+  <div class="card" style="padding:16px;margin-top:16px">
+    <h2>Lỗi nặng</h2>
+    <table class="data fit">
+      <thead><tr><th>Tuần</th><th>Lớp</th><th>Học sinh</th><th>Lỗi</th><th>Điểm</th><th>Quy đổi</th><th>GVCN phát hiện</th></tr></thead>
       <tbody>
       {% for ev in heavy_events %}
       <tr>
@@ -131,9 +125,8 @@
 {% endif %}
 
 <details class="card" style="margin-top:16px;padding:16px">
-  <summary>Nguồn điểm trừ tuần (thay thế)</summary>
-  <p>Điểm trừ tuần <b>dương</b>. Nhập thay thế bỏ ánh xạ lỗi nặng của tuần đó nhưng <b>vẫn cộng vào Σ 5.1</b>.</p>
-  {% if not weeks %}<div class="card" style="padding:16px;margin-bottom:16px">Chưa có tuần included=1 trong HK{{ hk }}.</div>{% endif %}
+  <summary>Điểm trừ tuần (thay thế)</summary>
+  {% if not weeks %}<p class="muted">Chưa có tuần trong học kỳ này.</p>{% endif %}
   <form class="toolbar" method="get">
     <input type="hidden" name="hk" value="{{ hk }}"><input type="hidden" name="mode" value="gvcn"><input type="hidden" name="view" value="{{ resultView }}">
     <div class="field"><label>Lớp nhập nguồn thay thế</label>
@@ -150,8 +143,7 @@
     <input type="hidden" name="nam_id" value="{{ nam.id }}"><input type="hidden" name="hk" value="{{ hk }}">
     <input type="hidden" name="lop_id" value="{{ selected.lop_id }}"><input type="hidden" name="action" value="penalties">
     <div style="overflow:auto">
-      <h2>Nguồn riêng: {{ selected.ten }} — {{ selected.gvcn }}</h2>
-      <p>Để trống ô thay thế rồi lưu = xóa nguồn riêng, trở về điểm tuần gốc (đã rút lỗi nặng).</p>
+      <h2>{{ selected.ten }}</h2>
       <table class="data">
         <thead><tr><th>Tuần</th><th>Điểm tuần gốc</th><th>Điểm thay thế</th><th>Ghi chú nguồn</th><th>Đang dùng</th></tr></thead>
         <tbody>
@@ -172,10 +164,9 @@
   {% endif %}
 </details>
 
-<details class="card" style="margin-top:16px;padding:16px">
-  <summary>Mô hình Excel 2016 (classic / teacher) — không dùng cho 2026–2027</summary>
-  <p class="muted">Giữ để xem dữ liệu cũ. Công thức chính là 20 điểm ở bảng trên.</p>
-  <p><a href="{{ url_for('conduct.index', hk=hk, mode='classic') }}">Điểm nề nếp classic</a> · <a href="{{ url_for('conduct.index', hk=hk, mode='teacher') }}">Đánh giá GVCN teacher</a> · <a href="{{ url_for('conduct.index', hk=hk, mode='data') }}">Bảng dữ liệu</a></p>
+{% if mode == 'teacher' or mode == 'classic' or mode == 'data' %}
+<details class="card" style="margin-top:16px;padding:16px" open>
+  <summary>Mô hình cũ</summary>
   {% if mode == 'teacher' or mode == 'classic' %}
   <form method="post" action="{{ url_for('conduct.index', hk=hk, mode=mode) }}">
     <input type="hidden" name="nam_id" value="{{ nam.id }}">
@@ -228,4 +219,5 @@
   </div>
   {% endif %}
 </details>
+{% endif %}
 {% endblock %}

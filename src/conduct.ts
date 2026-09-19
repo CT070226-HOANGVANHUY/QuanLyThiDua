@@ -27,7 +27,7 @@ export const MODE_LABELS: Record<string, string> = {
 };
 
 export const GVCN_HINT =
-  "Gán nhóm A/B/C ở Danh sách lớp. A trừ nhanh hơn (cứ đủ 5 điểm nề nếp thì GVCN mất 0,1). B cứ đủ 7; C cứ đủ 10. File chủ nhiệm cũ ghi A = 10A1, 11A1, 11A3, 12A1 — năm nay có lớp 10D nên cô tự gán, phần mềm không đoán hộ.";
+  "Lớp chọn (10A1, 10A2, 10A3, 11A1, 11A8, 12A1, 12A2) vào nhóm A — cứ đủ 5 điểm nề nếp thì GVCN mất 0,1. Các lớp khác vào nhóm C — cứ đủ 10 điểm mất 0,1. Có thể đổi tay ở Danh sách lớp.";
 
 const SCHEMA = `
 CREATE TABLE IF NOT EXISTS conduct_ratio (
@@ -384,8 +384,8 @@ export function conductTables(con: Db, namId: number, hk: number, view: "officia
       rows: scored.rows,
       notes: [
         "Lỗi −30/−50 được rút khỏi 5.1 và quy thành 10/15, trừ khi GVCN phát hiện.",
-        "WEEK3 / tuần included=0 không vào tổng và không làm điểm chính thức thành trống.",
-        view === "preview" ? "Xem trước: chỉ tuần đã công bố." : "Chính thức: mọi tuần included=1 của học kỳ phải đã công bố.",
+        "Tuần không tính không vào tổng và không làm điểm chính thức thành trống.",
+        view === "preview" ? "Xem thử: chỉ tuần đã công bố." : "Chính thức: mọi tuần được tính của học kỳ phải đã công bố.",
       ],
     },
     {

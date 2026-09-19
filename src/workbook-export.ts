@@ -9,14 +9,20 @@ export type Table = {
   notes?: string[];
 };
 
-export function applySafeValue(cell: ExcelJS.Cell, v: unknown) {
+export function paperNumber(v: unknown): unknown {
+  if (typeof v !== "number" || !Number.isFinite(v)) return v;
+  if (Number.isInteger(v)) return v;
+  return Number(v.toFixed(3));
+}
+
+export function applySafeValue(cell: ExcelJS.Cell, v: unknown, opts: { paper?: boolean } = {}) {
   if (typeof v === "string" && /^[=+\-@]/.test(v)) {
     cell.value = v;
     cell.numFmt = "@";
     return;
   }
   cell.value = v == null || Array.isArray(v) || typeof v === "object" ? null : (v as string | number | boolean);
-  if (typeof v === "number" && !Number.isInteger(v)) cell.numFmt = "0.0000";
+  if (opts.paper && typeof v === "number" && !Number.isInteger(v)) cell.numFmt = "0.000";
 }
 
 export async function workbookBuffer(tables: Table[]) {

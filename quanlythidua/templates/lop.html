@@ -1,15 +1,10 @@
 {% extends "base.html" %}
 {% block title %}Lớp{% endblock %}
 {% block body %}
-<h1 class="page-title">Danh sách lớp</h1>
-<p class="page-sub">Sĩ số dùng để chia điểm nề nếp. Loại hình dùng để xếp hạng. Nhóm A/B/C dùng để tính điểm cô chủ nhiệm.</p>
-<div class="guide">
-  <p><b>Lớp chọn / lớp thường</b> — hai bảng thi đua riêng, không trộn.</p>
-  <p><b>Nhóm A / B / C</b> — A trừ điểm cô nhanh hơn (ngưỡng 5), B ngưỡng 7, C ngưỡng 10. Chưa gán thì cuối kỳ chưa có điểm chủ nhiệm.</p>
-  {% if gvcn_hint %}<p>{{ gvcn_hint }}</p>{% endif %}
-</div>
+<h1 class="page-title">Lớp</h1>
+<p class="muted">Tên lớp, sĩ số, GVCN, loại hình thuộc năm học đang chọn. Năm mới: copy danh sách rồi sửa.</p>
 {% if loai_hinh_mismatch and loai_hinh_mismatch.length %}
-<div class="banner danger" style="margin-bottom:12px"><span class="dot">!</span> Nhóm và loại hình lệch: {% for r in loai_hinh_mismatch %}{{ r.ten }}{% if not loop.last %}, {% endif %}{% endfor %}. Hãy chọn lại Lớp chọn / Lớp thường.</div>
+<div class="banner danger" style="margin-bottom:12px"><span class="dot">!</span> Nhóm và loại hình lệch: {% for r in loai_hinh_mismatch %}{{ r.ten }}{% if not loop.last %}, {% endif %}{% endfor %}.</div>
 {% endif %}
 {% if leftover_reports and leftover_reports.length %}
 <div class="banner danger" style="margin-bottom:12px"><span class="dot">!</span> Lớp không áp dụng còn báo cáo tuần (không phải tuần mẫu): {% for r in leftover_reports %}{{ r.ten }}{% if not loop.last %}, {% endif %}{% endfor %}.</div>
@@ -24,7 +19,7 @@
   {% endif %}
 </div>
 <div class="card">
-<table class="data">
+<table class="data fit">
   <thead><tr><th>TT</th><th>Loại hình</th><th>Lớp</th><th>Khối</th><th>Sĩ số</th><th>Nữ</th><th>KT</th><th>GVCN</th><th>Nhóm CN</th><th>Áp dụng</th><th></th></tr></thead>
   <tbody>
   {% for r in lops %}
@@ -82,15 +77,15 @@
         <select name="gvcn_group_id" id="lopGvcnGroup">
           <option value="">Chưa gán</option>
           {% for g in gvcn_groups %}
-          <option value="{{ g.id }}">{{ g.ma }} — cứ đủ {{ "%.12g"|format(g.nguong) }} điểm nề nếp thì trừ cô 0,1</option>
+          <option value="{{ g.id }}">{{ g.ma }} (ngưỡng {{ "%.12g"|format(g.nguong) }})</option>
           {% endfor %}
         </select>
       </div>
       <div class="field"><label>Thứ tự</label><input name="thu_tu" id="lopTt" type="number" value="0"></div>
-      <div class="field"><label>Còn thi đua năm này?</label>
+      <div class="field"><label>Áp dụng</label>
         <select name="ap_dung" id="lopAp">
-          <option value="1">Có — tính điểm</option>
-          <option value="0">Không — lớp cũ, bỏ qua</option>
+          <option value="1">Có</option>
+          <option value="0">Không</option>
         </select>
       </div>
     </div>

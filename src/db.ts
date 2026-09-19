@@ -4,7 +4,11 @@ import { fileURLToPath } from "node:url";
 import { DatabaseSync } from "node:sqlite";
 import { GIO_KEYS, KTM_SCORE_KEYS, NN_KEYS, SCORE_FIELDS, type KtmDivisor } from "./scoring.ts";
 import {
+  assignDefaultGvcnGroups,
+  copyAliases,
   copyGvcnGroups,
+  ensureDotMilestones,
+  seedDefaultAliases,
   ensureGvcnRatioGroups,
   ensureHoiHocMilestones,
   ensureMilestoneSchema,
@@ -33,15 +37,23 @@ export type SeedClass = {
 };
 export type ListLopOpts = { activeOnly?: boolean };
 export type { KtmDivisor };
-export type HoiHocDouble = "none" | "hdtt_only" | "week_xt";
+export type HoiHocDouble = "none" | "hdtt" | "hdtt_only" | "week_xt";
 export type Gvcn51Window = "semester" | "weekly";
+export type HkBasis = "months" | "dots";
 export type YearFormula = {
   nam_id: number;
   ktm_divisor: KtmDivisor;
   hk_month_weight: number;
   hoi_hoc_double: HoiHocDouble;
   gvcn_5_1_window: Gvcn51Window;
+  hk_basis: HkBasis;
 };
+
+function parseHoiHocDouble(value: unknown, fallback: HoiHocDouble = "none"): HoiHocDouble {
+  return value === "hdtt" || value === "hdtt_only" || value === "week_xt" || value === "none"
+    ? value
+    : fallback;
+}
 
 export function yearFormulaOf(con: Db, namId: number): YearFormula {
   const yf = tableExists(con, "year_formula")
@@ -51,28 +63,30 @@ export function yearFormulaOf(con: Db, namId: number): YearFormula {
     nam_id: namId,
     ktm_divisor: yf?.ktm_divisor === "si_so" ? "si_so" : "count",
     hk_month_weight: Number(yf?.hk_month_weight) || 2,
-    hoi_hoc_double: yf?.hoi_hoc_double === "hdtt_only" || yf?.hoi_hoc_double === "week_xt"
-      ? yf.hoi_hoc_double
-      : "none",
+    hoi_hoc_double: parseHoiHocDouble(yf?.hoi_hoc_double),
     gvcn_5_1_window: yf?.gvcn_5_1_window === "weekly" ? "weekly" : "semester",
+    hk_basis: yf?.hk_basis === "dots" ? "dots" : "months",
   };
 }
 
-export function saveYearFormula(con: Db, namId: number, data: { ktm_divisor?: string; hoi_hoc_double?: string }) {
+export function saveYearFormula(con: Db, namId: number, data: { ktm_divisor?: string; hoi_hoc_double?: string; hk_basis?: string }) {
   requireActiveYear(con, namId);
   if (!tableExists(con, "year_formula")) throw new WorkflowError(500, "Chưa có bảng công thức năm học.");
   const cur = yearFormulaOf(con, namId);
   if (data.hoi_hoc_double != null && data.hoi_hoc_double !== "" &&
-      data.hoi_hoc_double !== "none" && data.hoi_hoc_double !== "hdtt_only" && data.hoi_hoc_double !== "week_xt") {
+      data.hoi_hoc_double !== "none" && data.hoi_hoc_double !== "hdtt" &&
+      data.hoi_hoc_double !== "hdtt_only" && data.hoi_hoc_double !== "week_xt") {
     throw new WorkflowError(400, "Công thức nhân đôi hội học không hợp lệ.");
   }
+  if (data.hk_basis != null && data.hk_basis !== "" && data.hk_basis !== "months" && data.hk_basis !== "dots") {
+    throw new WorkflowError(400, "Cách gộp học kỳ không hợp lệ.");
+  }
   const ktm: KtmDivisor = data.ktm_divisor === "si_so" ? "si_so" : data.ktm_divisor === "count" ? "count" : cur.ktm_divisor;
-  const hoi: HoiHocDouble = data.hoi_hoc_double === "hdtt_only" || data.hoi_hoc_double === "week_xt" || data.hoi_hoc_double === "none"
-    ? data.hoi_hoc_double
-    : cur.hoi_hoc_double;
-  run(con, `INSERT INTO year_formula(nam_id, ktm_divisor, hoi_hoc_double) VALUES (?,?,?)
-    ON CONFLICT(nam_id) DO UPDATE SET ktm_divisor=excluded.ktm_divisor, hoi_hoc_double=excluded.hoi_hoc_double`,
-    [namId, ktm, hoi]);
+  const hoi = parseHoiHocDouble(data.hoi_hoc_double, cur.hoi_hoc_double);
+  const basis: HkBasis = data.hk_basis === "dots" || data.hk_basis === "months" ? data.hk_basis : cur.hk_basis;
+  run(con, `INSERT INTO year_formula(nam_id, ktm_divisor, hoi_hoc_double, hk_basis) VALUES (?,?,?,?)
+    ON CONFLICT(nam_id) DO UPDATE SET ktm_divisor=excluded.ktm_divisor, hoi_hoc_double=excluded.hoi_hoc_double, hk_basis=excluded.hk_basis`,
+    [namId, ktm, hoi, basis]);
 }
 
 export function saveGvcnWindow(con: Db, namId: number, window: string) {
@@ -306,7 +320,14 @@ export function initDb(con: Db): void {
   ensureYearFormula(con);
   ensureMilestoneSchema(con);
   ensureHoiHocMilestones(con);
+  ensureDotMilestones(con, namId);
   ensureGvcnRatioGroups(con, namId);
+  assignDefaultGvcnGroups(con, namId);
+  run(con, `UPDATE year_formula SET ktm_divisor='si_so', hoi_hoc_double='hdtt', hk_basis='dots' WHERE nam_id=?`, [namId]);
+  if (tableExists(con, "school_calendar") && !get(con, "SELECT nam_id FROM school_calendar WHERE nam_id=?", [namId])) {
+    run(con, `INSERT INTO school_calendar(nam_id,ngay_bd,ngay_kt,hk2_bd) VALUES (?,?,?,?)`,
+      [namId, "2026-09-07", "2027-05-31", "2027-01-08"]);
+  }
   for (const row of seed.quy_che) {
     run(con, "INSERT INTO quy_che(stt, muc, noi_dung, diem, ghi_chu) VALUES (?,?,?,?,?)", row);
   }
@@ -337,8 +358,8 @@ export function addNamHoc(con: Db, ten: string, copyFrom?: number) {
     run(con, "INSERT OR IGNORE INTO year_formula(nam_id) VALUES (?)", [newId]);
     if (copyFrom) {
       const src = yearFormulaOf(con, copyFrom);
-      run(con, `UPDATE year_formula SET ktm_divisor=?, hk_month_weight=?, hoi_hoc_double=?, gvcn_5_1_window=? WHERE nam_id=?`,
-        [src.ktm_divisor, src.hk_month_weight, src.hoi_hoc_double, src.gvcn_5_1_window, newId]);
+      run(con, `UPDATE year_formula SET ktm_divisor=?, hk_month_weight=?, hoi_hoc_double=?, gvcn_5_1_window=?, hk_basis=? WHERE nam_id=?`,
+        [src.ktm_divisor, src.hk_month_weight, src.hoi_hoc_double, src.gvcn_5_1_window, src.hk_basis, newId]);
     }
   }
   ensureGvcnRatioGroups(con, newId);
@@ -369,9 +390,12 @@ export function addNamHoc(con: Db, ten: string, copyFrom?: number) {
       run(con, `INSERT INTO period_options(nam_id,model,semester,include_exam,exclude_activity)
         SELECT ?,model,semester,include_exam,exclude_activity FROM period_options WHERE nam_id=?`, [newId, copyFrom]);
     }
+    copyAliases(con, copyFrom, newId);
   }
+  seedDefaultAliases(con, newId);
   ensureMilestoneSchema(con);
   ensureHoiHocMilestones(con);
+  ensureDotMilestones(con, newId);
   return newId;
   });
 }

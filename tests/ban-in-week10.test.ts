@@ -5,7 +5,7 @@ import { addNamHoc, get, run, setActiveNam, transaction } from "../src/db.ts";
 import { initPlan, parseReport, resolveWeekForWrite, saveChamTay, saveReport } from "../src/plan.ts";
 import { banInHourCols, banInRows, banInTables, banInWorkbook, gvcnBonus, htColumns, nnColumns } from "../src/ban-in-export.ts";
 import { reportTables } from "../src/report-export.ts";
-import { workbookBuffer } from "../src/workbook-export.ts";
+import { paperNumber, workbookBuffer } from "../src/workbook-export.ts";
 import { violationRows, violationTables, VIOLATION_COLUMNS } from "../src/violation-export.ts";
 import { emptyDb, week10Fixture } from "./week10-fixture.ts";
 
@@ -107,6 +107,46 @@ test("1224 ties: every class with xt_chung 1 gets 0.5 bonus", () => {
     assert.equal(gvcnBonus(4), "");
     assert.equal(by.C.xt_chung, 3);
     assert.equal(by.C.gvcn_bonus, 0.2);
+  } finally { db.close(); }
+});
+
+test("paper display rounds averages to 3 decimals; stored scores stay exact", async () => {
+  assert.equal(paperNumber(-0.3409090909090909), -0.341);
+  assert.equal(paperNumber(1.7037037037037037), 1.704);
+  assert.equal(paperNumber(0.3414), 0.341);
+  assert.equal(paperNumber(0.3406), 0.341);
+  assert.notEqual(0.3414, 0.3406);
+  assert.equal(paperNumber(0.75), 0.75);
+  assert.equal(paperNumber(7), 7);
+  const { db, namId, tuanId } = week10Fixture();
+  try {
+    const raw = banInRows(db, namId, tuanId).find((row) => row.ten === "11A2")!;
+    assert.equal(raw.tb_ktm, 0.05);
+    const paperBuf = await banInWorkbook(db, namId, tuanId);
+    const paperWb = new ExcelJS.Workbook();
+    await paperWb.xlsx.load(paperBuf);
+    let sawPaperFmt = false;
+    paperWb.worksheets[0].eachRow((row) => {
+      row.eachCell((cell) => {
+        if (typeof cell.value === "number" && !Number.isInteger(cell.value)) {
+          assert.equal(cell.numFmt, "0.000");
+          sawPaperFmt = true;
+        }
+      });
+    });
+    assert.equal(sawPaperFmt, true);
+    const rankBuf = await workbookBuffer(reportTables(db, namId, {
+      scope: "tuan", key: String(tuanId), model: "monthly", view: "preview", cut: "school",
+    }));
+    const rankWb = new ExcelJS.Workbook();
+    await rankWb.xlsx.load(rankBuf);
+    rankWb.worksheets[0].eachRow((row) => {
+      row.eachCell((cell) => {
+        if (typeof cell.value === "number" && !Number.isInteger(cell.value)) {
+          assert.notEqual(cell.numFmt, "0.000");
+        }
+      });
+    });
   } finally { db.close(); }
 });
 

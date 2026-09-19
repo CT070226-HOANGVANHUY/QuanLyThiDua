@@ -1,20 +1,16 @@
 {% extends "base.html" %}
-{% block title %}Hôm nay làm gì{% endblock %}
+{% block title %}Trang chủ{% endblock %}
 {% block body %}
 <div class="page-head">
-  <h1 class="page-title">Hôm nay làm gì</h1>
+  <h1 class="page-title">Trang chủ</h1>
   {% include "week_filter.html" %}
 </div>
-<p class="page-sub">Làm theo 4 bước của tuần đang chọn. Ô vàng bên dưới là việc tiếp theo.</p>
 {% include "week_flow.html" %}
 
-{% if next_step %}
+{% if next_step and (not nam or so_lop == 0) %}
 <div class="next-box">
-  <div>
-    <h2>{{ next_step.title }}</h2>
-    <p>{{ next_step.text }}</p>
-  </div>
-  {% if next_step.href != '/' or next_step.label != 'Ở lại trang này' %}
+  <h2>{{ next_step.title }}</h2>
+  {% if next_step.href != '/' %}
   <a class="btn" href="{{ next_step.href }}">{{ next_step.label }}</a>
   {% endif %}
 </div>
@@ -30,33 +26,35 @@
   <div class="card">
     <div class="card-h"><h3>Hạng tuần đang chọn</h3></div>
     {% if tops %}
-    <table class="data">
-      <thead><tr><th>Loại</th><th>Hạng</th><th>Lớp</th><th></th></tr></thead>
+    <table class="data home-rank">
+      <thead><tr><th class="c-rank">Hạng</th><th>Lớp</th><th>Trạng thái</th></tr></thead>
       <tbody>
       {% for it in tops %}
+      {% if loop.first or tops[loop.index0 - 1].nhom != it.nhom %}
+      <tr class="group"><td colspan="3">{{ 'Lớp chọn' if it.nhom==1 else 'Lớp thường' }}</td></tr>
+      {% endif %}
       <tr>
-        <td>{{ 'Lớp chọn' if it.nhom==1 else 'Lớp thường' }}</td>
-        <td><span class="rank {% if it.xt_chung==1 %}g{% endif %}">{{ it.xt_chung }}</span></td>
-        <td><a href="{{ url_for('cham_tuan', nam_id=nam.id, nam=year, thang=month, week_start=selection.week_start, tuan_id=selection.tuan_id, lop_id=it.lop_id) }}"><b>{{ it.ten }}</b></a></td>
-        <td>{{ 'Đã công bố' if it.rank_status=='official' else 'Chưa công bố' }}</td>
+        <td class="c-rank"><span class="rank {% if it.xt_chung==1 %}g{% endif %}">{{ it.xt_chung }}</span></td>
+        <td class="lop"><a href="{{ url_for('cham_tuan', nam_id=nam.id, nam=year, thang=month, week_start=selection.week_start, tuan_id=selection.tuan_id, lop_id=it.lop_id) }}"><b>{{ it.ten }}</b></a></td>
+        <td class="status">{{ 'Đã công bố' if it.rank_status=='official' else 'Chưa công bố' }}</td>
       </tr>
       {% endfor %}
       </tbody>
     </table>
-    {% else %}<p class="muted">Chưa có hạng vì chưa nhập lớp nào tuần này.</p>{% endif %}
+    {% else %}<p class="muted">Chưa có hạng.</p>{% endif %}
   </div>
   <div class="card">
     <div class="card-h"><h3>Lỗi hay gặp tuần này</h3></div>
     {% if pho_bien %}
-    <table class="data">
+    <table class="data fit">
       {% for v in pho_bien %}<tr><td>{{ v.ten }}</td><td><b>{{ v.sl }}</b></td></tr>{% endfor %}
     </table>
-    {% else %}<p class="muted">Chưa có vi phạm đã ghi.</p>{% endif %}
+    {% else %}<p class="muted">Chưa có vi phạm.</p>{% endif %}
   </div>
 </div>
 {% if chart %}
 <div class="chart-card">
-  <div class="chart-head"><b>Số lớp đã hoàn tất</b><span>một vài tuần gần đây</span></div>
+  <div class="chart-head"><b>Số lớp đã hoàn tất</b></div>
   <div class="bars">
     {% for c in chart %}
     <div class="bar-col">
@@ -69,5 +67,4 @@
   </div>
 </div>
 {% endif %}
-<p class="hint" style="margin-top:16px"><a href="{{ url_for('huong_dan') }}">Xem cách dùng đầy đủ</a></p>
 {% endblock %}

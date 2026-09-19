@@ -14,7 +14,7 @@ import {
   type Dict,
   type HoiHocDouble,
 } from "./db.ts";
-import { HOI_HOC_MILESTONES } from "./migrate.ts";
+import { DOT_8_TUAN, HOI_HOC_MILESTONES, ensureDotMilestones } from "./migrate.ts";
 import { resolveWeekForWrite, schoolCalendar, scoreWeek } from "./plan.ts";
 import { competitionRanks } from "./scoring.ts";
 
@@ -135,9 +135,35 @@ export function tamKetWeekOptions(con: Db, namId: number, milestone: Dict): Mile
   return mergeAssignedWeeks(schoolFridayWeeks(con, namId), milestoneWeeks(con, Number(milestone.id)));
 }
 
+export function listTamKet(con: Db, namId: number) {
+  if (!tableExists(con, "milestone")) return [];
+  return all(con, `SELECT * FROM milestone WHERE nam_hoc_id=? AND loai='tam_ket'
+    ORDER BY CASE ma WHEN 'dot_1' THEN 1 WHEN 'dot_2' THEN 2 WHEN 'dot_3' THEN 3 WHEN 'dot_4' THEN 4 WHEN 'tam_ket' THEN 9 ELSE 8 END, ma`, [namId]);
+}
+
 export function getTamKet(con: Db, namId: number) {
   if (!tableExists(con, "milestone")) return undefined;
-  return get(con, "SELECT * FROM milestone WHERE nam_hoc_id=? AND ma='tam_ket'", [namId]);
+  return get(con, "SELECT * FROM milestone WHERE nam_hoc_id=? AND ma='tam_ket'", [namId])
+    ?? listTamKet(con, namId)[0];
+}
+
+export function syncDotWeeks(con: Db, namId: number) {
+  if (!tableExists(con, "milestone") || !tableExists(con, "tuan")) return;
+  ensureDotMilestones(con, namId);
+  const weeks = all(con, `SELECT id, calendar_no, so_tuan, ngay_bd FROM tuan
+    WHERE nam_hoc_id=? AND included=1 AND ngay_bd!='' ORDER BY calendar_no, ngay_bd, so_tuan`, [namId]);
+  for (const spec of DOT_8_TUAN) {
+    const ms = get(con, "SELECT id FROM milestone WHERE nam_hoc_id=? AND ma=?", [namId, spec.ma]);
+    if (!ms) continue;
+    run(con, "DELETE FROM milestone_week WHERE milestone_id=?", [ms.id]);
+    const members = weeks.filter((week) => {
+      const no = Number(week.calendar_no || week.so_tuan || 0);
+      return no >= spec.from && no <= spec.to;
+    });
+    members.forEach((week, i) => {
+      run(con, "INSERT INTO milestone_week(milestone_id,tuan_id,thu_tu) VALUES (?,?,?)", [ms.id, week.id, i + 1]);
+    });
+  }
 }
 
 export function createTamKet(con: Db, namId: number, nguonTuan: string) {
@@ -147,7 +173,9 @@ export function createTamKet(con: Db, namId: number, nguonTuan: string) {
     if (nguonTuan !== "union" && nguonTuan !== "manual") {
       throw new WorkflowError(400, "Nguồn tuần 8 tuần không hợp lệ.");
     }
-    if (getTamKet(con, namId)) throw new WorkflowError(400, "Đã có mốc 8 tuần.");
+    if (get(con, "SELECT id FROM milestone WHERE nam_hoc_id=? AND ma='tam_ket'", [namId])) {
+      throw new WorkflowError(400, "Đã có mốc 8 tuần.");
+    }
     run(con, `INSERT INTO milestone(nam_hoc_id,loai,ma,ten,nguon_tuan)
       VALUES (?,'tam_ket','tam_ket','8 tuần',?)`, [namId, nguonTuan]);
     const id = Number(get(con, "SELECT id FROM milestone WHERE nam_hoc_id=? AND ma='tam_ket'", [namId])!.id);
@@ -172,14 +200,20 @@ export function namHocMilestoneContext(con: Db, namId: number) {
     ...ms,
     weeks: hoiHocWeekOptions(con, namId, ms),
   }));
-  const tam = getTamKet(con, namId);
-  const tamWeeks = tam ? tamKetWeekOptions(con, namId, tam) : [];
+  syncDotWeeks(con, namId);
+  const dots = listTamKet(con, namId);
+  const union = dots.find((ms) => String(ms.ma) === "tam_ket");
+  const unionWeeks = union ? tamKetWeekOptions(con, namId, union) : [];
   return {
     year_formula: formula,
     hoi_hoc: hoiHoc,
-    tam_ket: tam
-      ? { ...tam, weeks: String(tam.nguon_tuan) === "union" ? tamWeeks.filter((week) => week.selected) : tamWeeks }
+    tam_ket: union
+      ? { ...union, weeks: String(union.nguon_tuan) === "union" ? unionWeeks.filter((week) => week.selected) : unionWeeks }
       : null,
+    tam_kets: dots.filter((ms) => String(ms.ma) !== "tam_ket").map((ms) => ({
+      ...ms,
+      weeks: milestoneWeeks(con, Number(ms.id)),
+    })),
   };
 }
 
@@ -389,8 +423,13 @@ function hdttByClass(con: Db, milestoneId: number, rows: Dict[]) {
   rankField(rows, "hdtt_sum", "xt_hdtt");
 }
 
+function usesHdtt(double: HoiHocDouble) {
+  return double === "hdtt" || double === "hdtt_only";
+}
+
 function formulaTong(sumXt: number, double: HoiHocDouble, xtHdtt: number | null): number | null {
   if (double === "hdtt_only") return xtHdtt == null ? null : sumXt + 2 * xtHdtt;
+  if (double === "hdtt") return xtHdtt == null ? null : sumXt + xtHdtt;
   if (double === "week_xt") return 2 * sumXt;
   return sumXt;
 }
@@ -422,24 +461,25 @@ export function milestoneTable(
     "Xếp thứ tăng dần riêng từng nhóm. Thiếu một lớp: cả nhóm chờ.",
   ];
   if (String(ms.loai) === "hoi_hoc") {
-    notes.push("Hội học official cần đúng 4 tuần thành viên đã công bố.");
+    notes.push("Hội học chính thức cần đúng 4 tuần đã công bố.");
     // none: Excel 20-11-2025 = Σ xt_chung 4 tuần rồi RANK(tong, asc); không cột HĐTT, không ×2.
     // hdtt_only: OQ5 «nhân đôi hoạt động» = Σ xt_w + 2·xt_hdtt, xt_hdtt = RANK(the_thao+van_nghe) trong nhom từ milestone_activity (không assessment_activity).
     // week_xt: Σ 2·xt_w — RANK(2x)=RANK(x) nên hạng giống none; chỉ để xem, UI phải cảnh báo.
-    if (double === "none") notes.push("Công thức none: tong = Σ xt_chung 4 tuần, rồi RANK tăng dần trong nhóm.");
-    if (double === "hdtt_only") notes.push("Công thức hdtt_only: tong = Σ xt_chung + 2 × XT HĐTT đợt. Thiếu HĐTT cả nhóm → official null.");
+    if (double === "none") notes.push("Cộng bốn hạng tuần, rồi xếp hạng tăng dần trong nhóm.");
+    if (double === "hdtt") notes.push("Cộng bốn hạng tuần với hạng văn nghệ / thể thao. Thiếu hoạt động thì cả nhóm chưa có hạng chính thức.");
+    if (double === "hdtt_only") notes.push("Cộng bốn hạng tuần, cộng thêm hạng văn nghệ / thể thao nhân đôi. Thiếu hoạt động thì cả nhóm chưa có hạng chính thức.");
     if (double === "week_xt") {
-      notes.push("Cảnh báo: week_xt nhân 2 từng XT tuần nhưng RANK(2x)=RANK(x) nên hạng giống none — chỉ để xem, không đổi xếp hạng.");
+      notes.push("Nhân đôi hạng từng tuần — thứ tự lớp không đổi, chỉ để xem.");
     }
   } else {
-    notes.push("8 tuần: tong = Σ xt_chung mọi tuần thành viên (không cộng XT hai đợt hội học).");
+    notes.push("8 tuần: cộng hạng tuần của mọi tuần thành viên.");
   }
   const weekResults: Record<number, Record<number, number | undefined>> = {};
   for (const week of weeks) {
     weekResults[Number(week.id)] = weekXt(con, week, view);
     columns.push([`w_${week.id}`, `XT tuần ${week.calendar_no || week.so_tuan}`]);
   }
-  if (double === "hdtt_only") hdttByClass(con, milestoneId, rows);
+  if (usesHdtt(double)) hdttByClass(con, milestoneId, rows);
   const officialReady = expected > 0 && weeks.length === expected;
   for (const row of rows) {
     const values = weeks.map((week) => {
@@ -451,11 +491,11 @@ export function milestoneTable(
     row.complete_count = available.length;
     row.constituent_count = values.length;
     const sumXt = available.length ? available.reduce((a, b) => a + Number(b), 0) : null;
-    const hdtt = double === "hdtt_only" ? (row.xt_hdtt as number | null) : 0;
+    const hdtt = usesHdtt(double) ? (row.xt_hdtt as number | null) : 0;
     const ready = view === "preview"
-      ? sumXt != null && (double !== "hdtt_only" || hdtt != null)
-      : officialReady && available.length === values.length && (double !== "hdtt_only" || hdtt != null);
-    row.tong = ready && sumXt != null ? formulaTong(sumXt, double, double === "hdtt_only" ? hdtt : 0) : null;
+      ? sumXt != null && (!usesHdtt(double) || hdtt != null)
+      : officialReady && available.length === values.length && (!usesHdtt(double) || hdtt != null);
+    row.tong = ready && sumXt != null ? formulaTong(sumXt, double, usesHdtt(double) ? hdtt : 0) : null;
   }
   rankField(rows, "tong", "xt_dot");
   const entries: Record<number, Dict> = {};
@@ -466,7 +506,7 @@ export function milestoneTable(
   }
   applyOverride(rows, entries);
   columns.push(["complete_count", "Đã đủ"], ["constituent_count", "Cấu phần"]);
-  if (double === "hdtt_only") columns.push(["the_thao", "XT thể thao"], ["van_nghe", "XT văn nghệ"], ["xt_hdtt", "XT HĐTT"]);
+  if (usesHdtt(double)) columns.push(["the_thao", "XT thể thao"], ["van_nghe", "XT văn nghệ"], ["xt_hdtt", "XT HĐTT"]);
   columns.push(["tong", "Tổng"], ["override_rank", "XT nguồn ghi đè"], ["xt_dot", "XT đợt"]);
   for (const row of rows) {
     const entry = entries[Number(row.lop_id)] ?? {};
@@ -482,10 +522,12 @@ export function milestoneTable(
     || Number(a.xt_dot ?? 9999) - Number(b.xt_dot ?? 9999)
     || String(a.ten).localeCompare(String(b.ten), "vi"));
   const source = double === "hdtt_only"
-    ? "tong = Σ xt_chung + 2 × xt_hdtt; xt_dot = RANK(tong, asc) trong nhóm."
+    ? "Tổng = cộng hạng tuần + hai lần hạng văn nghệ/thể thao; xếp hạng trong nhóm."
+    : double === "hdtt"
+      ? "Tổng = cộng hạng tuần + hạng văn nghệ/thể thao; xếp hạng trong nhóm."
     : double === "week_xt"
-      ? "tong = Σ (2 × xt_chung); xt_dot = RANK(tong, asc) — hạng giống none."
-      : "tong = Σ xt_chung tuần thành viên; xt_dot = RANK(tong, asc) trong nhóm.";
+      ? "Tổng = cộng hạng tuần nhân đôi; thứ tự lớp không đổi."
+      : "Tổng = cộng hạng tuần thành viên; xếp hạng trong nhóm.";
   return {
     title: String(ms.ten),
     source,
@@ -499,4 +541,4 @@ export function milestoneTable(
   };
 }
 
-export { HOI_HOC_MILESTONES };
+export { DOT_8_TUAN, HOI_HOC_MILESTONES };

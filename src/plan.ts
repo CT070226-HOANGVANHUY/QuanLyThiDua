@@ -1,6 +1,6 @@
 import { addColumn, all, get, getTuan, inTransaction, listLop, listTuan, requireActiveYear, requireOwned, run, SAMPLE_WEEK_NOTE, tableExists, transaction, upsertTuan, WorkflowError, yearFormulaOf, type Db, type Dict } from "./db.ts";
 import { CATALOG_SCORE_KEYS, migrate } from "./migrate.ts";
-import { GIO_KEYS, KTM_SCORE_KEYS, NN_KEYS, competitionRanks, scoreAll, type ClassResult, type Row } from "./scoring.ts";
+import { GIO_KEYS, HOI_HOC_WEIGHTS, KTM_SCORE_KEYS, NN_KEYS, competitionRanks, scoreAll, type ClassResult, type Row } from "./scoring.ts";
 
 export const TT_NHAP = "nhap";
 export const TT_CHOT = "chot";
@@ -9,6 +9,11 @@ export const TT_LABEL: Record<string, string> = {
   nhap: "Đang nhập",
   chot: "Đã chốt",
   cong_bo: "Đã công bố",
+};
+export const RANK_STATUS_LABEL: Record<string, string> = {
+  official: "Đã công bố",
+  provisional: "Chưa công bố",
+  missing: "Thiếu dữ liệu",
 };
 
 export const LOAI_NN: [string, string][] = [
@@ -111,6 +116,7 @@ CREATE TABLE IF NOT EXISTS nghi_hoc (
   bao_cao_id INTEGER NOT NULL REFERENCES bao_cao_tuan(id) ON DELETE CASCADE,
   ho_ten TEXT NOT NULL,
   ngay TEXT NOT NULL DEFAULT '',
+  buoi TEXT NOT NULL DEFAULT '' CHECK(buoi IN ('','sang','chieu')),
   ghi_chu TEXT NOT NULL DEFAULT ''
 );
 CREATE TABLE IF NOT EXISTS su_kien (
@@ -122,6 +128,7 @@ CREATE TABLE IF NOT EXISTS su_kien (
   so_luong REAL NOT NULL DEFAULT 1,
   tiet_mon TEXT NOT NULL DEFAULT '',
   noi_dung TEXT NOT NULL DEFAULT '',
+  buoi TEXT NOT NULL DEFAULT '' CHECK(buoi IN ('','sang','chieu')),
   ghi_chu TEXT NOT NULL DEFAULT '',
   tieu_chi_id INTEGER REFERENCES tieu_chi(id),
   tap_the INTEGER NOT NULL DEFAULT 0 CHECK(tap_the IN (0,1)),
@@ -174,6 +181,8 @@ export function initPlan(con: Db) {
     addColumn(con, "cham_dong", "don_vi_snapshot", "TEXT NOT NULL DEFAULT ''");
     addColumn(con, "cham_dong", "reason", "TEXT NOT NULL DEFAULT ''");
     addColumn(con, "su_kien", "tieu_chi_id", "INTEGER REFERENCES tieu_chi(id)");
+    addColumn(con, "su_kien", "buoi", "TEXT NOT NULL DEFAULT ''");
+    addColumn(con, "nghi_hoc", "buoi", "TEXT NOT NULL DEFAULT ''");
     con.exec(`CREATE TABLE IF NOT EXISTS weekly_legacy_input(
       tuan_id INTEGER NOT NULL REFERENCES tuan(id), lop_id INTEGER NOT NULL REFERENCES lop(id),
       payload_json TEXT NOT NULL, confirmed INTEGER NOT NULL DEFAULT 0,
@@ -454,40 +463,38 @@ export function weekFlow(input: {
     },
   ];
   let next = {
-    title: "Nhập tuần đang chọn",
-    text: chuaBao > 0
-      ? `Còn ${chuaBao} lớp chưa hoàn tất. Gõ từ giấy bí thư, sổ thanh niên kiểm tra hoặc tin Zalo.`
-      : "Chọn lớp bên trái, bấm ngày và tên, rồi Hoàn tất lớp.",
+    title: chuaBao > 0 ? `Còn ${chuaBao} lớp chưa nhập` : "Nhập tuần",
+    text: "",
     href: nhapHref,
     label: "Nhập tuần",
   };
   if (soLop <= 0) {
     next = {
       title: "Chưa có lớp",
-      text: "Cần danh sách lớp trước khi nhập tuần.",
+      text: "",
       href: "/lop",
       label: "Thêm lớp",
     };
   } else if (current === "chot") {
     next = {
-      title: "Đã nhập đủ lớp — chốt tuần",
-      text: "Xem xếp hạng, rồi bấm Chốt tuần. Chốt xong còn mở lại được.",
+      title: "Chốt tuần",
+      text: "",
       href: xepHref,
-      label: "Xếp hạng và chốt",
+      label: "Xếp hạng",
     };
   } else if (current === "cong_bo") {
     next = {
       title: "Công bố tuần",
-      text: "Sau khi công bố, số liệu tuần này được khóa. Dùng số đó để tính tháng, hội học và điểm chủ nhiệm.",
+      text: "",
       href: xepHref,
-      label: "Công bố tuần",
+      label: "Công bố",
     };
   } else if (current === "in") {
     next = {
       title: "Tuần đã công bố",
-      text: "Tải bảng vi phạm hoặc bảng treo tường. Sang tuần sau thì bấm «Tuần sau».",
+      text: "",
       href: inHref,
-      label: "In và tải file",
+      label: "In / xuất",
     };
   }
   return {
@@ -525,7 +532,7 @@ export function classNameHints(con: Db, namId: number, lopId: number): string[] 
   `, [namId, lopId, namId, lopId]).map((row) => String(row.ho_ten));
 }
 
-function fridayOf(value: string) {
+export function fridayOf(value: string) {
   return shiftDate(value, -(isoDate(value).getUTCDay() + 2) % 7);
 }
 
@@ -713,6 +720,11 @@ const PAPER_CATALOG_MA = new Set(["nghi_hoc", "di_muon", "trang_phuc", "phu_hieu
 export function catalogTieuChi(con: Db, namId: number) {
   return listTieuChi(con, namId, true).filter((criterion) =>
     mappedNnScoreKey(criterion.score_key) && !PAPER_CATALOG_MA.has(String(criterion.ma)));
+}
+
+export function entryTieuChi(con: Db, namId: number) {
+  return listTieuChi(con, namId, true).filter((criterion) =>
+    mappedNnScoreKey(criterion.score_key) || PAPER_CATALOG_MA.has(String(criterion.ma)));
 }
 
 export function upsertTieuChi(con: Db, namId: number, data: Dict) {
@@ -1022,6 +1034,117 @@ export function saveReport(
   });
 }
 
+function ensureDraftReport(con: Db, week: Dict, lopId: number) {
+  const exist = getBaoCao(con, Number(week.id), lopId);
+  if (exist) return Number(exist.id);
+  const zeros = REPORT_COUNTS.map(() => 0);
+  const result = run(con, `INSERT INTO bao_cao_tuan(tuan_id,lop_id,${REPORT_COUNTS.join(",")},bi_thu,ngay_lap,ghi_chu_gio,ghi_chu_ktm,trang_thai,revision,updated_at)
+    VALUES (${Array(2 + REPORT_COUNTS.length + 7).fill("?").join(",")})`,
+    [week.id, lopId, ...zeros, "", String(week.ngay_bd || ""), "Nhập lỗi tuần", "Nhập lỗi tuần", "nhap", 1, new Date().toISOString()]);
+  return Number(result.lastInsertRowid);
+}
+
+export function parseBuoi(raw: string | undefined): "sang" | "chieu" | "" {
+  const text = String(raw || "").trim().toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+  if (text === "sang") return "sang";
+  if (text === "chieu") return "chieu";
+  return "";
+}
+
+export type WeekLoiInput = {
+  lop_id: number;
+  ngay: string;
+  ho_ten: string;
+  tieu_chi_id: number;
+  so_luong?: number;
+  tap_the?: boolean;
+  gvcn_phat_hien?: boolean;
+  ghi_chu?: string;
+  buoi?: string;
+};
+
+export function appendWeekLoi(
+  con: Db,
+  namId: number,
+  selection: { tuan_id?: number; week_start?: string },
+  input: WeekLoiInput,
+) {
+  return transaction(con, () => {
+    requireActiveYear(con, namId);
+    requireOwned(con, "lop", input.lop_id, namId);
+    const week = resolveWeekForWrite(con, namId, selection);
+    if (locked(week)) throw new WorkflowError(409, "Tuần đã khóa; không thêm lỗi.");
+    freezeWeekClasses(con, namId, Number(week.id));
+    const criterion = requireOwned(con, "tieu_chi", input.tieu_chi_id, namId);
+    if (!Number(criterion.ap_dung)) throw new WorkflowError(400, "Tiêu chí không áp dụng.");
+    const ngay = String(input.ngay || "").trim();
+    if (!week.ngay_bd || !week.ngay_kt || ngay < String(week.ngay_bd) || ngay > String(week.ngay_kt)) {
+      throw new WorkflowError(400, "Ngày phải nằm trong tuần báo cáo.");
+    }
+    const tapThe = Boolean(input.tap_the);
+    let hoTen = String(input.ho_ten || "").trim();
+    if (!tapThe && !hoTen && String(criterion.ma) !== "nghi_hoc") {
+      throw new WorkflowError(400, "Cần họ tên hoặc đánh dấu tập thể.");
+    }
+    if (tapThe && !hoTen) hoTen = "Tập thể";
+    const soLuong = input.so_luong == null ? 1 : Number(input.so_luong);
+    if (!Number.isSafeInteger(soLuong) || soLuong < 1) throw new WorkflowError(400, "Số lượng phải từ 1.");
+    const baoCaoId = ensureDraftReport(con, week, input.lop_id);
+    const ma = String(criterion.ma);
+    const ghiChu = String(input.ghi_chu || "").trim();
+    const buoi = parseBuoi(input.buoi);
+    if (!buoi) throw new WorkflowError(400, "Cần chọn buổi sáng hoặc chiều.");
+    const row: ReportRow = {
+      index: 0,
+      tieu_chi_id: String(criterion.id),
+      ho_ten: hoTen,
+      ngay,
+      so_luong: String(soLuong),
+      tap_the: tapThe ? "1" : "0",
+      gvcn_phat_hien: input.gvcn_phat_hien ? "1" : "0",
+      ghi_chu: ghiChu,
+      noi_dung: ghiChu,
+      tiet_mon: "",
+      buoi,
+    };
+    if (ma === "nghi_hoc") {
+      if (!hoTen) throw new WorkflowError(400, "Nghỉ học cần họ tên.");
+      run(con, "INSERT INTO nghi_hoc(bao_cao_id,ho_ten,ngay,buoi,ghi_chu) VALUES (?,?,?,?,?)", [baoCaoId, hoTen, ngay, buoi, ghiChu]);
+    } else if (PAPER_CATALOG_MA.has(ma) && ma !== "van_nghe") {
+      insertSuKien(con, namId, baoCaoId, ma, row);
+    } else {
+      insertSuKien(con, namId, baoCaoId, "vp", row);
+    }
+    rebuildAuto(con, Number(week.id), input.lop_id);
+    run(con, "UPDATE tuan SET revision=revision+1 WHERE id=?", [week.id]);
+    run(con, "UPDATE bao_cao_tuan SET revision=revision+1, updated_at=datetime('now','localtime') WHERE id=?", [baoCaoId]);
+    return { week, lop_id: input.lop_id, ten: String(criterion.ten), diem: Number(criterion.diem) };
+  });
+}
+
+export function listWeekLoi(con: Db, tuanId: number) {
+  const nghi = all(con, `SELECT 'nghi' AS kind, n.id, bc.lop_id, l.ten AS lop_ten, l.thu_tu,
+      n.ho_ten, n.ngay, 1 AS so_luong, n.ghi_chu, 'nghi_hoc' AS ma, 'Nghỉ học không lý do' AS tieu_chi_ten,
+      COALESCE(tc.diem, -10) AS diem, 0 AS tap_the
+    FROM nghi_hoc n
+    JOIN bao_cao_tuan bc ON bc.id=n.bao_cao_id
+    JOIN lop l ON l.id=bc.lop_id
+    LEFT JOIN tieu_chi tc ON tc.nam_hoc_id=l.nam_hoc_id AND tc.ma='nghi_hoc'
+    WHERE bc.tuan_id=?`, [tuanId]);
+  const sk = all(con, `SELECT 'su_kien' AS kind, sk.id, bc.lop_id, l.ten AS lop_ten, l.thu_tu,
+      sk.ho_ten, sk.ngay, sk.so_luong, sk.ghi_chu, COALESCE(tc.ma, sk.loai) AS ma,
+      COALESCE(tc.ten, sk.loai) AS tieu_chi_ten, COALESCE(tc.diem, 0) AS diem, sk.tap_the
+    FROM su_kien sk
+    JOIN bao_cao_tuan bc ON bc.id=sk.bao_cao_id
+    JOIN lop l ON l.id=bc.lop_id
+    LEFT JOIN tieu_chi tc ON tc.id=sk.tieu_chi_id
+    WHERE bc.tuan_id=?`, [tuanId]);
+  return [...nghi, ...sk].sort((a, b) =>
+    Number(a.thu_tu) - Number(b.thu_tu)
+    || String(a.ngay).localeCompare(String(b.ngay))
+    || String(a.ho_ten).localeCompare(String(b.ho_ten), "vi"));
+}
+
 export function indexed(f: Record<string, string>, prefix: string, fields: string[]) {
   const indexes = new Set<number>();
   for (const key of Object.keys(f)) {
@@ -1056,16 +1179,16 @@ function insertSuKien(con: Db, namId: number, baoCaoId: number, loai: string, ro
       throw new WorkflowError(400, "Tiêu chí chưa ánh xạ.");
     }
     const storedLoai = String(criterion.score_key || "vp");
-    run(con, `INSERT INTO su_kien(bao_cao_id,loai,ho_ten,ngay,so_luong,tiet_mon,noi_dung,ghi_chu,tieu_chi_id,tap_the,gvcn_phat_hien,nguon)
-      VALUES (?,?,?,?,?,?,?,?,?,?,?,'tnkt')`,
+    run(con, `INSERT INTO su_kien(bao_cao_id,loai,ho_ten,ngay,so_luong,tiet_mon,noi_dung,ghi_chu,tieu_chi_id,tap_the,gvcn_phat_hien,nguon,buoi)
+      VALUES (?,?,?,?,?,?,?,?,?,?,?,'tnkt',?)`,
       [baoCaoId, storedLoai, hoTen, row.ngay || "", Number(row.so_luong || 1), row.tiet_mon || "", row.noi_dung || "",
-        row.ghi_chu || "", tieuChiId, tapThe, gvcn]);
+        row.ghi_chu || "", tieuChiId, tapThe, gvcn, parseBuoi(row.buoi)]);
     return;
   }
-  run(con, `INSERT INTO su_kien(bao_cao_id,loai,ho_ten,ngay,so_luong,tiet_mon,noi_dung,ghi_chu,tieu_chi_id,tap_the,gvcn_phat_hien,nguon)
-    VALUES (?,?,?,?,?,?,?,?,NULL,?,?,'giay')`,
+  run(con, `INSERT INTO su_kien(bao_cao_id,loai,ho_ten,ngay,so_luong,tiet_mon,noi_dung,ghi_chu,tieu_chi_id,tap_the,gvcn_phat_hien,nguon,buoi)
+    VALUES (?,?,?,?,?,?,?,?,NULL,?,?,'giay',?)`,
     [baoCaoId, loai, hoTen, row.ngay || "", Number(row.so_luong || 1), row.tiet_mon || "", row.noi_dung || "",
-      row.ghi_chu || "", tapThe, gvcn]);
+      row.ghi_chu || "", tapThe, gvcn, parseBuoi(row.buoi)]);
 }
 
 function addAuto(con: Db, tuanId: number, lopId: number, tc: Dict, sl: number) {
@@ -1198,7 +1321,12 @@ function scoreWeekCore(con: Db, tuanId: number): ClassWeek[] {
   const inputs = buildWeekInputs(con, Number(week.nam_hoc_id), tuanId);
   const available = inputs.filter((input) => Boolean(input.report) || input.reportStatus === "legacy");
   const ktmDivisor = yearFormulaOf(con, Number(week.nam_hoc_id)).ktm_divisor;
-  const scored = scoreAll(available.map((input) => blankResult(input.lop, input.row)), ktmDivisor);
+  const hoiMa = tableExists(con, "milestone_week")
+    ? get(con, `SELECT m.ma FROM milestone_week mw JOIN milestone m ON m.id=mw.milestone_id
+        WHERE mw.tuan_id=? AND m.loai='hoi_hoc' AND m.ma IN ('20-11','26-3') ORDER BY m.ma LIMIT 1`, [tuanId])
+    : undefined;
+  const weights = hoiMa ? HOI_HOC_WEIGHTS[String(hoiMa.ma)] : undefined;
+  const scored = scoreAll(available.map((input) => blankResult(input.lop, input.row)), ktmDivisor, weights);
   const scoredById = new Map(scored.map((result) => [result.lop_id, result]));
   const groupComplete = new Map<number, boolean>();
   for (const input of inputs) {

@@ -1,10 +1,7 @@
 {% extends "base.html" %}
 {% block title %}Tổng hợp{% endblock %}
 {% block body %}
-<h1 class="page-title">Tháng / học kỳ / năm</h1>
-<div class="guide">
-  <p>Chọn tháng, học kỳ hoặc cả năm. <b>Chỉ tuần đã công bố</b> dùng họp. <b>Xem thử</b> tính cả tuần chưa công bố.</p>
-</div>
+<h1 class="page-title">Tháng / kỳ</h1>
 <form class="toolbar" method="get">
   <div class="field"><label>Cách gộp</label><select name="model" onchange="this.form.submit()">
     {% for value, label in models %}<option value="{{ value }}" {% if value==model %}selected{% endif %}>{{ label }}</option>{% endfor %}
@@ -19,23 +16,22 @@
     <option value="official" {% if resultView=='official' %}selected{% endif %}>Chỉ tuần đã công bố</option>
     <option value="preview" {% if resultView=='preview' %}selected{% endif %}>Xem thử</option>
   </select></div>
-  <a class="btn" href="{{ url_for('periods.export', scope=mode, mode=mode, key=key, model=model, view=resultView, format='print', cut='school') }}">Xem trước</a>
-  <a class="btn-gold" href="{{ url_for('periods.export', scope=mode, mode=mode, key=key, model=model, view=resultView, format='xlsx', cut='school') }}">Tải Excel</a>
+  <a class="btn" href="{{ url_for('periods.export', scope=mode, mode=mode, key=key, model=model, view=resultView, format='print', cut='school') }}">Tải / In</a>
 </form>
 
 <div class="card">
   <h2>{{ table.title }}</h2>
-  <p class="muted">{{ table.source }}</p>
-  {% for note in table.notes %}<p class="notice">{{ note }}</p>{% endfor %}
   <form method="post" action="/tong-hop/ghi-chu">
     <input type="hidden" name="nam_id" value="{{ nam_hoc.id }}">
     <input type="hidden" name="mode" value="{{ mode }}"><input type="hidden" name="key" value="{{ key }}">
     <input type="hidden" name="model" value="{{ model }}"><input type="hidden" name="view" value="{{ resultView }}">
-    <div class="table-wrap"><table class="data" style="min-width: {{ table.columns|length * 115 + 120 }}px">
-      <thead><tr>{% for col in table.columns %}<th>{{ col[1] }}</th>{% endfor %}<th>XT ghi đè</th></tr></thead>
+    <div class="table-wrap fit"><table class="data fit">
+      <thead><tr>{% for col in table.columns %}{% if col[0] not in ['complete_count','constituent_count','input_source'] %}<th>{{ col[1] }}</th>{% endif %}{% endfor %}<th>XT ghi đè</th></tr></thead>
       <tbody>{% for row in table.rows %}<tr>
         {% for col in table.columns %}
-          {% if col[0]=='discipline' %}<td><input name="discipline_{{ row.lop_id }}" value="{{ row.discipline }}"></td>
+          {% if col[0] in ['complete_count','constituent_count','input_source'] %}
+          {% elif col[0]=='nhom' %}<td>{{ 'Lớp chọn' if row.nhom==1 else 'Lớp thường' }}</td>
+          {% elif col[0]=='discipline' %}<td><input name="discipline_{{ row.lop_id }}" value="{{ row.discipline }}"></td>
           {% elif col[0]=='reward' %}<td><input name="reward_{{ row.lop_id }}" value="{{ row.reward }}"></td>
           {% elif col[0]=='notes' %}<td><input name="notes_{{ row.lop_id }}" value="{{ row.notes }}"></td>
           {% else %}<td>{{ row[col[0]] if row[col[0]] != null else '—' }}</td>{% endif %}

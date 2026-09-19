@@ -74,11 +74,11 @@ test("migrate v4 inserts empty 20-11/26-3, no weeks, user_version=8", () => {
       PRAGMA user_version=4;`);
     run(db, "INSERT INTO nam_hoc(id,ten,active) VALUES (1,'2026-2027',1)");
     migrate(db);
-    assert.equal(get(db, "PRAGMA user_version")?.user_version, 10);
+    assert.equal(get(db, "PRAGMA user_version")?.user_version, 12);
     const rows = all(db, "SELECT ma, loai, ten FROM milestone WHERE nam_hoc_id=1 ORDER BY ma");
-    assert.deepEqual(rows.map((r) => r.ma), ["20-11", "26-3"]);
-    assert.ok(rows.every((r) => r.loai === "hoi_hoc"));
-    assert.equal(get(db, "SELECT id FROM milestone WHERE loai='tam_ket'"), undefined);
+    assert.deepEqual(rows.map((r) => r.ma), ["20-11", "26-3", "dot_1", "dot_2", "dot_3", "dot_4"]);
+    assert.ok(rows.filter((r) => r.loai === "hoi_hoc").every((r) => r.ma === "20-11" || r.ma === "26-3"));
+    assert.equal(get(db, "SELECT id FROM milestone WHERE ma='tam_ket'"), undefined);
     assert.equal(get(db, "SELECT COUNT(*) AS n FROM milestone_week")?.n, 0);
     assert.ok(tableExists(db, "milestone_activity"));
     assert.ok(tableExists(db, "milestone_entry"));
@@ -105,14 +105,14 @@ test("v6 with su_kien gets v7 columns then v8 tables; paper loai backfill giay",
     run(db, "INSERT INTO year_formula(nam_id) VALUES (1)");
     run(db, "INSERT INTO su_kien(loai,ho_ten) VALUES ('di_muon','A'),('vp_khac','B'),('other','C')");
     migrate(db);
-    assert.equal(get(db, "PRAGMA user_version")?.user_version, 10);
+    assert.equal(get(db, "PRAGMA user_version")?.user_version, 12);
     for (const col of ["tap_the", "gvcn_phat_hien", "nguon"]) {
       assert.ok(colNames(db, "su_kien").includes(col), col);
     }
     assert.equal(get(db, "SELECT nguon FROM su_kien WHERE loai='di_muon'")?.nguon, "giay");
     assert.equal(get(db, "SELECT nguon FROM su_kien WHERE loai='vp_khac'")?.nguon, "giay");
     assert.equal(get(db, "SELECT nguon FROM su_kien WHERE loai='other'")?.nguon, "tnkt");
-    assert.equal(get(db, "SELECT COUNT(*) AS n FROM milestone WHERE nam_hoc_id=1")?.n, 2);
+    assert.equal(get(db, "SELECT COUNT(*) AS n FROM milestone WHERE nam_hoc_id=1 AND loai='hoi_hoc'")?.n, 2);
     assert.equal(get(db, "SELECT COUNT(*) AS n FROM milestone_week")?.n, 0);
   } finally { db.close(); }
 });
@@ -122,14 +122,15 @@ test("addNamHoc inserts empty hội học rows and copyFrom does not copy weeks 
   try {
     const namId = Number(addNamHoc(db, "2026-2027"));
     setActiveNam(db, namId);
-    assert.equal(get(db, "PRAGMA user_version")?.user_version, 10);
-    const rows = all(db, "SELECT * FROM milestone WHERE nam_hoc_id=? ORDER BY ma", [namId]);
+    assert.equal(get(db, "PRAGMA user_version")?.user_version, 12);
+    const rows = all(db, "SELECT * FROM milestone WHERE nam_hoc_id=? AND loai='hoi_hoc' ORDER BY ma", [namId]);
     assert.deepEqual(rows.map((r) => [r.ma, r.loai, r.ten]), [
       ["20-11", "hoi_hoc", "Hội học 20/11"],
       ["26-3", "hoi_hoc", "Hội học 26/3"],
     ]);
+    assert.equal(get(db, "SELECT COUNT(*) AS n FROM milestone WHERE nam_hoc_id=? AND ma LIKE 'dot_%'", [namId])?.n, 4);
     assert.equal(get(db, "SELECT COUNT(*) AS n FROM milestone_week")?.n, 0);
-    assert.equal(get(db, "SELECT id FROM milestone WHERE loai='tam_ket'"), undefined);
+    assert.equal(get(db, "SELECT id FROM milestone WHERE ma='tam_ket'"), undefined);
     run(db, `INSERT INTO lop(nam_hoc_id,ten,khoi,nhom,si_so,thu_tu,loai_hinh,ap_dung)
       VALUES (?,'10A1',10,1,40,1,'chon',1)`, [namId]);
     const ms = Number(get(db, "SELECT id FROM milestone WHERE nam_hoc_id=? AND ma='20-11'", [namId])!.id);
@@ -138,11 +139,12 @@ test("addNamHoc inserts empty hội học rows and copyFrom does not copy weeks 
     createTamKet(db, namId, "union");
     assert.ok(get(db, "SELECT id FROM milestone WHERE nam_hoc_id=? AND ma='tam_ket'", [namId]));
     const copied = Number(addNamHoc(db, "2027-2028", namId));
-    const copyRows = all(db, "SELECT ma, loai FROM milestone WHERE nam_hoc_id=? ORDER BY ma", [copied]);
+    const copyRows = all(db, "SELECT ma, loai FROM milestone WHERE nam_hoc_id=? AND loai='hoi_hoc' ORDER BY ma", [copied]);
     assert.deepEqual(copyRows.map((r) => r.ma), ["20-11", "26-3"]);
     assert.equal(get(db, `SELECT COUNT(*) AS n FROM milestone_week mw
       JOIN milestone m ON m.id=mw.milestone_id WHERE m.nam_hoc_id=?`, [copied])?.n, 0);
-    assert.equal(get(db, "SELECT id FROM milestone WHERE nam_hoc_id=? AND loai='tam_ket'", [copied]), undefined);
+    assert.equal(get(db, "SELECT id FROM milestone WHERE nam_hoc_id=? AND ma='tam_ket'", [copied]), undefined);
+    assert.equal(get(db, "SELECT COUNT(*) AS n FROM milestone WHERE nam_hoc_id=? AND ma LIKE 'dot_%'", [copied])?.n, 4);
   } finally { db.close(); }
 });
 
@@ -244,7 +246,7 @@ test("hdtt_only adds 2×xt_hdtt; week_xt doubles tong but keeps rank", () => {
     assert.equal(doubled.rows.find((r) => r.ten === "B")!.tong, 22);
     assert.equal(doubled.rows.find((r) => r.ten === "A")!.xt_dot, 1);
     assert.equal(doubled.rows.find((r) => r.ten === "B")!.xt_dot, 2);
-    assert.ok((doubled.notes as string[]).some((n) => /RANK\(2x\)=RANK\(x\)/.test(n)));
+    assert.ok((doubled.notes as string[]).some((n) => /thứ tự lớp không đổi/.test(n)));
 
     run(db, "UPDATE year_formula SET hoi_hoc_double='hdtt_only' WHERE nam_id=?", [namId]);
     const noHdtt = milestoneTable(db, namId, ms, "official");
@@ -257,6 +259,11 @@ test("hdtt_only adds 2×xt_hdtt; week_xt doubles tong but keeps rank", () => {
     assert.equal(hdtt.rows.find((r) => r.ten === "B")!.tong, 13);
     assert.equal(hdtt.rows.find((r) => r.ten === "B")!.xt_dot, 1);
     assert.equal(hdtt.rows.find((r) => r.ten === "A")!.xt_dot, 2);
+
+    run(db, "UPDATE year_formula SET hoi_hoc_double='hdtt' WHERE nam_id=?", [namId]);
+    const hdttOnce = milestoneTable(db, namId, ms, "official");
+    assert.equal(hdttOnce.rows.find((r) => r.ten === "A")!.tong, 12);
+    assert.equal(hdttOnce.rows.find((r) => r.ten === "B")!.tong, 12);
   } finally { db.close(); }
 });
 
@@ -404,7 +411,8 @@ test("/khen hoi_hoc and tam_ket keys use milestone_entry; export scopes hoi_hoc/
       run(db, "INSERT INTO milestone_week(milestone_id,tuan_id,thu_tu) VALUES (?,?,?)", [ms, id, i + 1]);
     });
     const keys = khenMilestoneKeys(db, namId);
-    assert.deepEqual(keys.map(([key]) => key.split(":")[0]), ["hoi_hoc", "hoi_hoc"]);
+    assert.deepEqual(keys.filter(([key]) => key.startsWith("hoi_hoc")).map(([key]) => key.split(":")[0]), ["hoi_hoc", "hoi_hoc"]);
+    assert.equal(keys.filter(([key]) => key.startsWith("tam_ket")).length, 4);
     assert.deepEqual(parseMilestoneKy(`hoi_hoc:${ms}`), { loai: "hoi_hoc", id: ms });
     saveMilestoneEntries(db, namId, ms, { [`kq_${a}`]: "Khen hội học", [`gc_${a}`]: "Ghi chú khen" });
     const row = milestoneTable(db, namId, ms, "official").rows.find((r) => r.ten === "A")!;

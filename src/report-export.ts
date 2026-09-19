@@ -1,11 +1,13 @@
-import { getTuan, requireOwned, WorkflowError, type Db, type Dict } from "./db.ts";
+import { getTuan, listTuan, requireOwned, WorkflowError, type Db, type Dict } from "./db.ts";
 import { HT_GIO_COLS, HT_KTM_COLS, NN_COLS } from "./scoring.ts";
-import { getMilestone, milestoneTable } from "./milestones.ts";
-import { periodKeys, periodTable } from "./periods.ts";
-import { scoreWeek, type ClassWeek } from "./plan.ts";
+import { listMilestones, getMilestone, milestoneTable } from "./milestones.ts";
+import { monthsOf, periodKeys, periodTable } from "./periods.ts";
+import { RANK_STATUS_LABEL, scoreWeek, type ClassWeek } from "./plan.ts";
+import { conductTables } from "./conduct.ts";
+import { violationTables } from "./violation-export.ts";
 import type { Table } from "./workbook-export.ts";
 
-export type ExportScope = "tuan" | "thang" | "nua" | "hk" | "nam" | "hoi_hoc" | "tam_ket";
+export type ExportScope = "tuan" | "thang" | "nua" | "hk" | "nam" | "hoi_hoc" | "tam_ket" | "all";
 
 export type ExportRequest = {
   scope: ExportScope;
@@ -17,7 +19,7 @@ export type ExportRequest = {
   lop_id?: number;
 };
 
-const EXPORT_SCOPES: ExportScope[] = ["tuan", "thang", "nua", "hk", "nam", "hoi_hoc", "tam_ket"];
+const EXPORT_SCOPES: ExportScope[] = ["tuan", "thang", "nua", "hk", "nam", "hoi_hoc", "tam_ket", "all"];
 
 function cutRows(rows: Dict[], request: ExportRequest) {
   if (request.cut === "class") {
@@ -58,11 +60,12 @@ function weekTables(con: Db, namId: number, request: ExportRequest): Table[] {
     ...row,
     ...row.row,
     cong_ne_nep: row.row.cong_ne_nep ?? 0,
+    rank_status: RANK_STATUS_LABEL[row.rank_status] || row.rank_status,
   }));
   return [
     {
       title: `Xếp hạng tuần ${week.calendar_no || week.so_tuan}`,
-      source: `${request.view === "official" ? "Snapshot đã công bố" : "Xem trước"} · ${week.ngay_bd ?? ""} – ${week.ngay_kt ?? ""} · năm ${namId}`,
+      source: `${request.view === "official" ? "Bản đã công bố" : "Xem thử"} · ${week.ngay_bd ?? ""} – ${week.ngay_kt ?? ""}`,
       notes: ["Xếp thứ riêng từng nhóm trước khi lọc lớp/nhóm. Hạng nhỏ hơn tốt hơn.", "Trọng số giờ: Tốt +2, Khá +1, TB 0, Yếu −1, Kém −2. Điểm miệng: 9–10 +2, 7–8 +1, 5–6 0, 3–4 −1, 0–2 −2."],
       columns: [
         ["nhom", "Nhóm"], ["ten", "Lớp"], ["si_so", "Sĩ số"],
@@ -79,10 +82,14 @@ function weekTables(con: Db, namId: number, request: ExportRequest): Table[] {
       title: "Chi tiết nguồn",
       source: "Tự tính từ báo cáo / chấm bổ sung / nguồn cũ.",
       columns: [
-        ["ten", "Lớp"], ["nguon", "Nguồn"], ["score_key", "Khóa"], ["ten_snapshot", "Tiêu chí lúc ghi"],
+        ["ten", "Lớp"], ["nguon", "Nguồn"], ["score_key", "Mã tiêu chí"], ["ten_snapshot", "Tiêu chí lúc ghi"],
         ["so_luong", "SL"], ["diem_mot", "Điểm/SL"], ["thanh_diem", "Thành điểm"], ["reason", "Lý do"],
       ],
-      rows: rows.flatMap((row) => row.lines.map((line) => ({ ...line, ten: row.ten }))),
+      rows: rows.flatMap((row) => row.lines.map((line) => ({
+        ...line,
+        ten: row.ten,
+        nguon: line.nguon === "tay" ? "Điều chỉnh" : "Từ phiếu nhập",
+      }))),
     },
   ];
 }
@@ -99,11 +106,53 @@ function milestoneTables(con: Db, namId: number, request: ExportRequest): Table[
   return [{ ...table, rows: cutRows(table.rows, request) }];
 }
 
+function tryTables(load: () => Table[]): Table[] {
+  try {
+    return load();
+  } catch (err) {
+    if (err instanceof WorkflowError && (err.status === 409 || err.status === 400)) return [];
+    throw err;
+  }
+}
+
+export function allReportTables(con: Db, namId: number, view: "official" | "preview"): Table[] {
+  const tables: Table[] = [];
+  for (const week of listTuan(con, namId).filter((row) => row.ngay_bd)) {
+    tables.push(...tryTables(() => reportTables(con, namId, {
+      scope: "tuan", key: String(week.id), model: "monthly", view, cut: "school",
+    })));
+    tables.push(...tryTables(() => violationTables(con, namId, Number(week.id)) as Table[]));
+  }
+  for (const month of monthsOf(con, namId)) {
+    tables.push(...tryTables(() => reportTables(con, namId, {
+      scope: "thang", key: month.key, model: "monthly", view, cut: "school",
+    })));
+  }
+  for (const hk of ["1", "2"]) {
+    tables.push(...tryTables(() => reportTables(con, namId, {
+      scope: "hk", key: hk, model: "monthly", view, cut: "school",
+    })));
+  }
+  tables.push(...tryTables(() => reportTables(con, namId, {
+    scope: "nam", key: "all", model: "monthly", view, cut: "school",
+  })));
+  for (const ms of listMilestones(con, namId)) {
+    tables.push(...tryTables(() => reportTables(con, namId, {
+      scope: String(ms.loai) as ExportScope, key: String(ms.id), model: "monthly", view, cut: "school",
+    })));
+  }
+  for (const hk of [1, 2]) {
+    tables.push(...tryTables(() => conductTables(con, namId, hk, view) as Table[]));
+  }
+  return tables;
+}
+
 export function reportTables(con: Db, namId: number, request: ExportRequest): Table[] {
   if (!EXPORT_SCOPES.includes(request.scope) || !["school", "group", "class"].includes(request.cut)) {
     throw new WorkflowError(400, "Phạm vi xuất không hợp lệ.");
   }
   if (request.cut === "class" && request.lop_id) requireOwned(con, "lop", request.lop_id, namId);
+  if (request.scope === "all") return allReportTables(con, namId, request.view);
   if (request.scope === "tuan") return weekTables(con, namId, request);
   if (request.scope === "hoi_hoc" || request.scope === "tam_ket") return milestoneTables(con, namId, request);
   if (!periodKeys(con, namId, request.scope, request.model).some(([key]) => key === request.key)) {

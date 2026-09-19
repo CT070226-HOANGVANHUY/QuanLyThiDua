@@ -1,6 +1,8 @@
 import { all, get, listLop, listTuan, requireActiveYear, requireOwned, run, transaction, WorkflowError, yearFormulaOf, type Db, type Dict } from "./db.ts";
 import { schoolCalendar, scoreWeek } from "./plan.ts";
 import { activityResults, examResults } from "./assessments.ts";
+import { DOT_8_TUAN } from "./migrate.ts";
+import { listTamKet, milestoneTable } from "./milestones.ts";
 import { competitionRanks } from "./scoring.ts";
 export const MODELS: Record<string, string> = {
   monthly: "Theo tháng (năm nay)",
@@ -166,7 +168,7 @@ export function periodTable(
   const entries = entriesOf(con, namId, mode, key, model);
   if (mode === "thang") {
     title = `Tháng ${key}`;
-    source = "Thi dua thang: F=SUM(B:E); G=RANK(F).";
+    source = "Cộng hạng các tuần trong tháng, rồi xếp hạng trong nhóm.";
     const month = months.find((m) => m.key === key);
     const weeks = month?.weeks ?? [];
     const weekResults: Record<number, Record<number, number | undefined>> = {};
@@ -227,17 +229,30 @@ export function periodTable(
     title = `Học kỳ ${key}`;
     const options = optionsOf(con, namId, model, Number(key));
     const includeExam = model === "monthly" && key === "2" && Number(options.include_exam);
-    const hkWeight = model === "monthly" ? yearFormulaOf(con, namId).hk_month_weight : 2;
+    const formula = yearFormulaOf(con, namId);
+    const hkWeight = model === "monthly" ? formula.hk_month_weight : 2;
+    const useDots = model === "monthly" && formula.hk_basis === "dots";
+    const rankKey = useDots ? "xt_dot" : "xt";
     let constituents: [string, string, Dict][] = [];
     let weights: number[] = [];
     let ready = true;
-    if (model === "monthly") {
+    if (useDots) {
+      source = `Tổng XT HK = Tổng XT theo đợt × ${hkWeight} + XT HĐTT.`;
+      const dots = listTamKet(con, namId);
+      constituents = DOT_8_TUAN.filter((spec) => spec.hk === Number(key)).map((spec) => {
+        const ms = dots.find((row) => String(row.ma) === spec.ma);
+        const table = ms ? milestoneTable(con, namId, Number(ms.id), view) : { rows: [] as Dict[] };
+        return [spec.ma, spec.ten, table] as [string, string, Dict];
+      });
+      weights = constituents.map(() => 1);
+      ready = constituents.every((c) => (c[2].rows as Dict[]).length > 0);
+    } else if (model === "monthly") {
       source = `Tổng XT HK = Tổng XT theo tháng × ${hkWeight} + XT HĐTT.`;
       constituents = months.filter((m) => m.semester === Number(key)).map((m) => [m.key, `XT tháng ${m.key}`, periodTable(con, namId, "thang", m.key, model, view)]);
       weights = constituents.map(() => 1);
       ready = !months.some((m) => m.semester === Number(key) && m.conflict);
     } else {
-      source = "E=B+2*C; J=2*F+H.";
+      source = "Tổng học kỳ = cộng hạng tháng nhân hệ số, cộng hạng hoạt động tập thể.";
       constituents = ([["dau", "XT nửa đầu"], ["sau", "XT nửa sau"]] as const).map(([h, lab]) => [
         `${key}-${h}`,
         lab,
@@ -249,7 +264,7 @@ export function periodTable(
     for (const [name, label] of constituents) columns.push([`c_${name}`, label]);
     for (const row of rows) {
       const values = constituents.map((c, i) => {
-        const value = maps[i][Number(row.lop_id)]?.xt;
+        const value = maps[i][Number(row.lop_id)]?.[rankKey];
         row[`c_${c[0]}`] = value ?? null;
         return value == null ? null : Number(value) * weights[i];
       });
@@ -293,7 +308,7 @@ export function periodTable(
     );
   } else {
     title = "Cả năm";
-    source = "D=B+2*C; E=RANK(D).";
+    source = "Hạng cả năm = hạng học kỳ I + hai lần hạng học kỳ II.";
     const maps = [1, 2].map((i) => Object.fromEntries((periodTable(con, namId, "hk", String(i), model, view).rows as Dict[]).map((r) => [r.lop_id, r])));
     for (const row of rows) {
       const first = maps[0][Number(row.lop_id)];

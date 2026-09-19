@@ -62,7 +62,7 @@ function submitAll(db: DatabaseSync, tuanId: number, count: number, extraByLop: 
 test("v9 seeds A/B/C thresholds and does not assign classes", () => {
   const db = emptyDb();
   try {
-    assert.equal(get(db, "PRAGMA user_version")?.user_version, 10);
+    assert.equal(get(db, "PRAGMA user_version")?.user_version, 12);
     const groups = ["A", "B", "C"].map((ma) => get(db, "SELECT * FROM gvcn_ratio_group WHERE nam_hoc_id=1 AND ma=?", [ma]));
     assert.equal(groups[0]?.nguong, 5);
     assert.equal(groups[1]?.nguong, 7);

@@ -55,12 +55,17 @@ try {
     if (path === "/" && !text.includes("themeToggle")) fail("Home missing theme toggle");
     if (path === "/" && !text.includes("Còn phải nhập")) fail("Home missing remaining-class stat");
     if (path === "/" && !text.includes("week-flow")) fail("Home missing week steps");
+    if (path === "/huong-dan" && !text.includes("Điểm trừ tuần (thay thế)")) fail("Cách dùng missing weekly override help");
+    if (path === "/huong-dan" && !text.includes("Nhập tuần")) fail("Cách dùng missing weekly entry help");
   }
 
   const css = await grab("/static/css/app.css");
   if (!css.text.includes('html[data-theme="dark"]')) fail("CSS missing dark theme");
+  if (!css.text.includes("flash-hold") || !css.text.includes("is-leaving")) fail("CSS missing flash appear/dismiss animation");
   const theme = await grab("/static/js/theme.js");
   if (!theme.text.includes("thidua-theme")) fail("theme.js missing storage key");
+  const flashJs = await grab("/static/js/flash.js");
+  if (!flashJs.text.includes("HOLD_MS = 10000")) fail("flash.js missing 10s hold");
   await grab("/static/js/forms.js");
 
   const openQ = `nam=2026&thang=9&week_start=${open!.ngay_bd}&tuan_id=${open!.id}`;
@@ -83,18 +88,19 @@ try {
   if (!locked.text.includes("disabled") && !locked.text.includes("Tuần đã khóa")) fail("Published week form not locked");
 
   const rank = await grab(`/ket-qua-tuan?nam=2026&thang=9&week_start=${published!.ngay_bd}&tuan_id=${published!.id}`);
-  if (!rank.text.includes("Đã công bố") && !rank.text.includes("Hạng tuần")) fail("Ranking page missing published ranks");
+  if (!rank.text.includes("Đã công bố") || !rank.text.includes("class=\"data result\"")) fail("Ranking page missing published ranks");
+  if (!rank.text.includes("Lớp chọn") || !rank.text.includes("Nề nếp")) fail("Ranking table missing grouped headers");
 
   const chotPage = await grab(`/ket-qua-tuan?nam=2026&thang=9&week_start=${chot!.ngay_bd}&tuan_id=${chot!.id}`);
   if (!chotPage.text.includes("Công bố")) fail("Chốt week missing Công bố button");
 
-  await grab(`/xuat/loi-hs?tuan_id=${published!.id}`);
-  await grab(`/xuat/ban-in?tuan_id=${published!.id}`);
+  await grab(`/xuat/loi-hs?tuan_id=${published!.id}&format=xlsx`);
+  await grab(`/xuat/ban-in?tuan_id=${published!.id}&format=xlsx`);
   await grab(`/xuat/bao-cao?scope=tuan&key=${published!.id}&model=monthly&view=official&format=xlsx`);
   const banPreview = await grab(`/xuat/ban-in?tuan_id=${published!.id}&format=print`);
-  if (!banPreview.text.includes("Tải Excel") || !banPreview.text.includes("xem trước")) fail("Ban in preview missing download/preview chrome");
+  if (!banPreview.text.includes("Tải Excel") || !banPreview.text.includes("Kiểm tra bảng")) fail("Ban in preview missing download/preview chrome");
   const vpPreview = await grab(`/xuat/loi-hs?tuan_id=${published!.id}&format=print`);
-  if (!vpPreview.text.includes("Tải Excel") || !vpPreview.text.includes("xem trước")) fail("Violation preview missing download/preview chrome");
+  if (!vpPreview.text.includes("Tải Excel") || !vpPreview.text.includes("Kiểm tra bảng")) fail("Violation preview missing download/preview chrome");
   const reportPreview = await grab(`/xuat/bao-cao?scope=tuan&key=${published!.id}&model=monthly&view=official&format=print`);
   if (!reportPreview.text.includes("Tải Excel") || !reportPreview.text.includes("Tải Word")) fail("Report preview missing Excel/Word links");
   await grab("/tong-hop?mode=thang&key=2026-09&model=monthly&view=preview");

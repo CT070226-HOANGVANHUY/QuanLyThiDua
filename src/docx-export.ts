@@ -11,12 +11,12 @@ import {
   TextRun,
   WidthType,
 } from "docx";
-import type { Table as ReportTable } from "./workbook-export.ts";
+import { paperNumber, type Table as ReportTable } from "./workbook-export.ts";
 
 function cell(value: unknown, bold = false, shade?: string) {
   return new TableCell({
     shading: shade ? { fill: shade } : undefined,
-    children: [new Paragraph({ children: [new TextRun({ text: value == null ? "" : String(value), bold, size: 18 })] })],
+    children: [new Paragraph({ children: [new TextRun({ text: value == null ? "" : String(paperNumber(value)), bold, size: 18 })] })],
   });
 }
 

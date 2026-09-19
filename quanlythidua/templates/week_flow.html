@@ -1,12 +1,9 @@
 {% if week_flow and week_flow.steps %}
-<nav class="week-flow" aria-label="Các bước làm việc tuần">
+<nav class="week-flow" aria-label="Các bước tuần">
   {% for step in week_flow.steps %}
   <a class="week-flow-step {{ step.state }}" href="{{ step.href }}" {% if step.state=='current' %}aria-current="step"{% endif %}>
     <span class="week-flow-n">{{ step.n }}</span>
-    <span class="week-flow-copy">
-      <b>{{ step.label }}</b>
-      <small>{{ step.hint }}</small>
-    </span>
+    <b>{{ step.label }}</b>
   </a>
   {% if not loop.last %}<span class="week-flow-join" aria-hidden="true"></span>{% endif %}
   {% endfor %}

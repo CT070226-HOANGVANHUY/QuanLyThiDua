@@ -107,6 +107,7 @@ app.whenReady().then(async () => {
     minWidth: 1100,
     minHeight: 700,
     title: "Thi đua Giao Thủy C",
+    icon: path.join(ROOT, "quanlythidua", "static", "img", "logo.png"),
     autoHideMenuBar: true,
     backgroundColor: "#eef3f8",
     webPreferences: {

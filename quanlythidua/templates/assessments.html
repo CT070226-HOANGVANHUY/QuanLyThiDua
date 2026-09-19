@@ -2,7 +2,6 @@
 {% block title %}{{ kinds[kind] }}{% endblock %}
 {% block body %}
 <h1 class="page-title">{{ kinds[kind] }}</h1>
-<p class="page-sub">Nhập điểm thi hoặc thứ tự văn nghệ / thể thao. Số này cộng vào học kỳ nếu được bật.</p>
 <form method="get" class="toolbar" action="{{ url_for('assessments.index') }}">
   <div class="field">
     <label>Bảng</label>
@@ -23,9 +22,9 @@
       {% for lop in lops %}<option value="{{ lop.id }}" {% if selected and lop.id == selected.id %}selected{% endif %}>{{ lop.ten }}</option>{% endfor %}
     </select>
   </div>
-  <a class="btn-gold" href="{{ url_for('assessments.export', kind=kind, period=period) }}">Xuất Excel</a>
+  <a class="btn" href="{{ url_for('assessments.export', kind=kind, period=period, format='print') }}">Tải / In</a>
 </form>
-{% if error %}<div class="flash error" role="alert" data-error-alert="{{ error | e }}">{{ error }}</div>{% endif %}
+{% if error %}<div class="flash error" role="alert" data-error-alert="{{ error | e }}"><span class="flash-ico" aria-hidden="true"></span><span class="flash-body">{{ error }}</span></div>{% endif %}
 {% if selected %}
 <div class="card">
   <h2>{{ selected.ten }} · sĩ số {{ selected.si_so }}</h2>
@@ -39,8 +38,7 @@
       <div class="field"><label for="{{ key }}">{{ label }}</label><input id="{{ key }}" name="{{ key }}" type="number" min="0" max="100" step="any" value="{{ values[key] }}" placeholder="—"></div>
       {% endfor %}
     </div>
-    <h3>Xếp loại (tổng = sĩ số {{ selected.si_so }})</h3>
-    <p class="hint">Bấm − / + theo số học sinh từng mức. Tổng phải đúng sĩ số lớp.</p>
+    <h3>Xếp loại</h3>
     <div class="form-grid count-grid">
       {% for key, label, weight in classifications %}
       <div class="field"><label for="{{ key }}">{{ label }}</label><input id="{{ key }}" name="{{ key }}" type="number" min="0" step="1" inputmode="numeric" value="{{ values[key] }}" placeholder="—"></div>
@@ -65,14 +63,14 @@
 {% endif %}
 <div class="card">
   <h2>Kết quả</h2>
-  <div style="overflow-x:auto">
-    <table class="data">
+  <div class="table-wrap fit">
+    <table class="data fit">
       <thead><tr>{% for key, label in table.columns %}<th>{{ label }}</th>{% endfor %}</tr></thead>
       <tbody>
         {% for row in table.rows %}
         <tr>
           {% for key, label in table.columns %}
-          <td>{% if key == 'ten' %}<a href="{{ url_for('assessments.index', kind=kind, period=period, lop_id=row.lop_id) }}">{{ row[key] }}</a>{% elif row[key] is none %}<span class="muted">—</span>{% elif row[key] is float %}{{ '%.4f'|format(row[key])|replace('.0000', '') }}{% else %}{{ row[key] }}{% endif %}</td>
+          <td>{% if key == 'ten' %}<a href="{{ url_for('assessments.index', kind=kind, period=period, lop_id=row.lop_id) }}">{{ row[key] }}</a>{% elif key == 'nhom' %}{{ 'Lớp chọn' if row.nhom==1 else 'Lớp thường' }}{% elif row[key] is none %}<span class="muted">—</span>{% elif row[key] is float %}{{ '%.4f'|format(row[key])|replace('.0000', '') }}{% else %}{{ row[key] }}{% endif %}</td>
           {% endfor %}
         </tr>
         {% else %}<tr><td colspan="{{ table.columns|length }}">Chưa có lớp.</td></tr>{% endfor %}

@@ -177,14 +177,14 @@ export function banInTables(con: Db, namId: number, tuanId: number): Table[] {
     {
       title: "1. NỀ NẾP",
       source,
-      notes: ["Nhóm Lớp chọn / Lớp thường theo week_class.thu_tu. Không dùng nhãn NÂNG CAO / CƠ BẢN."],
+      notes: ["Xếp riêng lớp chọn và lớp thường theo thứ tự lớp."],
       columns: nnColumns(),
       rows: printed,
     },
     {
       title: "2. HỌC TẬP",
       source,
-      notes: ["KTM ≥5 / <5 derived. Không in cột 5–6. Thưởng tuần: XT chung 1/2/3 → 0.5/0.3/0.2 (1224)."],
+      notes: ["Cột ≥5 / <5 suy ra từ điểm miệng. Thưởng tuần: nhất 0,5 — nhì 0,3 — ba 0,2."],
       columns: htColumns(hasKem),
       rows: printed,
     },
@@ -220,7 +220,7 @@ function writeBlock(
   rows.forEach((record, r) => {
     columns.forEach(([key], c) => {
       const cell = ws.getCell(headerRow + 1 + r, startCol + c);
-      applySafeValue(cell, record[key]);
+      applySafeValue(cell, record[key], { paper: true });
       paint(cell, { size: 9, fill: (r + 1) % 2 === 0 ? "FFEDF3F8" : undefined, center: true });
     });
   });

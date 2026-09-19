@@ -38,8 +38,10 @@ import { tuanLabel } from "./logic.ts";
 import {
   LOAI_NN,
   TT_LABEL,
+  appendWeekLoi,
   catalogTieuChi,
   deleteTieuChi,
+  entryTieuChi,
   diemCoSo,
   initPlan,
   listKhen,
@@ -71,6 +73,7 @@ import {
   sampleWeek,
   deleteSampleWeek,
 } from "./plan.ts";
+import { deleteAlias, listAliases, saveAlias } from "./tieu-chi-alias.ts";
 import {
   ACTIVITY_FIELDS,
   EXAM_FIELDS,
@@ -121,15 +124,19 @@ import {
   getTamKet,
   khenMilestoneKeys,
   listMilestones,
+  listTamKet,
   milestoneTable,
   namHocMilestoneContext,
   parseMilestoneKy,
   saveMilestoneActivity,
   saveMilestoneEntries,
   saveMilestoneWeeks,
+  syncDotWeeks,
 } from "./milestones.ts";
 import { checkRestoreCandidate, lastBackupInfo, vacuumBackup } from "./backup.ts";
 import { importRoster2026 } from "./migrate.ts";
+import { importPhanAnhFile } from "./phan-anh-import.ts";
+import { existsSync } from "node:fs";
 import { createEnv, urlFor, view } from "./render.ts";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
@@ -148,10 +155,12 @@ app.use(cookieParser());
 app.use("/static", express.static(path.join(ROOT, "quanlythidua", "static")));
 
 app.use((req, res, next) => {
-  const msg = req.cookies.flash;
+  const msg = typeof req.cookies.flash === "string" ? req.cookies.flash.trim() : "";
   if (msg) {
-    (req as express.Request & { flashMsg?: string[]; flashKind?: string }).flashMsg = [String(msg)];
+    (req as express.Request & { flashMsg?: string[]; flashKind?: string }).flashMsg = [msg];
     (req as express.Request & { flashKind?: string }).flashKind = req.cookies.flash_kind === "error" ? "error" : "ok";
+  }
+  if (req.cookies.flash != null || req.cookies.flash_kind != null) {
     res.clearCookie("flash");
     res.clearCookie("flash_kind");
   }
@@ -182,11 +191,12 @@ function namId() {
 }
 function ctx() {
   const n = nam({} as express.Request);
-  const tam = n ? getTamKet(con, Number(n.id)) : undefined;
+  const dots = n ? listTamKet(con, Number(n.id)) : [];
+  const tam = dots[0];
   return {
     nam: n,
     nam_hocs: listNamHoc(con),
-    show_tam_ket: Boolean(tam),
+    show_tam_ket: dots.length > 0,
     tam_ket_id: tam ? Number(tam.id) : 0,
   };
 }
@@ -321,9 +331,9 @@ app.get("/", (req, res) => {
   const status = tuan ? String(tuan.trang_thai || "nhap") : "";
   let next_step = flow.week_flow.next;
   if (!n) {
-    next_step = { title: "Chưa có năm học", text: "Bấm «Năm mới» góc trên phải để tạo năm đang làm việc.", href: "/", label: "Ở lại trang này" };
+    next_step = { title: "Chưa có năm học", text: "", href: "/", label: "Ở lại trang này" };
   } else if (!lops.length) {
-    next_step = { title: "Chưa có lớp", text: "Cần danh sách lớp trước khi nhập tuần.", href: "/lop", label: "Thêm lớp" };
+    next_step = { title: "Chưa có lớp", text: "", href: "/lop", label: "Thêm lớp" };
   }
   view(env, req, res, "home.html", {
     ...ctx(),
@@ -410,6 +420,7 @@ app.get("/nam-hoc", (req, res) => {
 app.post("/nam-hoc", (req, res) => {
   const n = postedNam(req);
   saveSchoolCalendar(con, n, form(req));
+  syncDotWeeks(con, n);
   flash(res, "Đã lưu lịch năm học");
   res.redirect("/nam-hoc");
 });
@@ -421,7 +432,7 @@ app.post("/nam-hoc/gan-ngay", (req, res) => {
 app.post("/nam-hoc/cong-thuc", (req, res) => {
   const n = postedNam(req);
   const f = form(req);
-  saveYearFormula(con, n, { hoi_hoc_double: f.hoi_hoc_double, ktm_divisor: f.ktm_divisor });
+  saveYearFormula(con, n, { hoi_hoc_double: f.hoi_hoc_double, ktm_divisor: f.ktm_divisor, hk_basis: f.hk_basis });
   flash(res, "Đã lưu công thức hội học");
   res.redirect("/nam-hoc");
 });
@@ -449,9 +460,7 @@ app.post("/nam-hoc/nap-roster", (req, res) => {
 
 app.get("/hoi-hoc", (req, res) => {
   const n = namId();
-  const hoi = listMilestones(con, n, "hoi_hoc");
-  const tam = getTamKet(con, n);
-  const milestones = tam ? [...hoi, tam] : hoi;
+  const milestones = [...listMilestones(con, n, "hoi_hoc"), ...listTamKet(con, n)];
   if (!milestones.length) throw new WorkflowError(404, "Chưa có mốc hội học.");
   const requested = req.query.milestone_id ? Number(req.query.milestone_id) : Number(milestones[0].id);
   const current = milestones.find((ms) => Number(ms.id) === requested);
@@ -474,7 +483,8 @@ app.post("/hoi-hoc/ghi-chu", (req, res) => {
   if (!ms) throw new WorkflowError(404, "Không tìm thấy mốc trong năm học này.");
   transaction(con, () => {
     saveMilestoneEntries(con, n, milestoneId, f);
-    if (String(ms.loai) === "hoi_hoc" && yearFormulaOf(con, n).hoi_hoc_double === "hdtt_only") {
+    const hoi = yearFormulaOf(con, n).hoi_hoc_double;
+    if (String(ms.loai) === "hoi_hoc" && (hoi === "hdtt_only" || hoi === "hdtt")) {
       saveMilestoneActivity(con, n, milestoneId, f);
     }
   });
@@ -559,6 +569,7 @@ function reportPage(
     thai_do: loaded.sk.filter((event) => event.loai === "thai_do" && !isCatalog(event)),
     vp: loaded.sk.filter((event) => isCatalog(event) || event.loai === "vp"),
     tieu_chi_nn: catalogTieuChi(con, n),
+    tieu_chi_loi: entryTieuChi(con, n),
     week_days: weekDays,
     name_hints: names,
     click_entry_json: JSON.stringify({ days: weekDays, names }),
@@ -567,6 +578,30 @@ function reportPage(
 }
 
 app.get("/bao-cao-tuan", (req, res) => reportPage(req, res));
+app.post("/bao-cao-tuan/loi", (req, res) => {
+  const f = form(req);
+  const n = postedNam(req);
+  const saved = appendWeekLoi(con, n, {
+    tuan_id: f.tuan_id ? Number(f.tuan_id) : undefined,
+    week_start: f.week_start,
+  }, {
+    lop_id: Number(f.lop_id),
+    ngay: f.ngay,
+    ho_ten: f.ho_ten,
+    tieu_chi_id: Number(f.tieu_chi_id),
+    so_luong: f.so_luong ? Number(f.so_luong) : 1,
+    tap_the: f.tap_the === "1",
+    gvcn_phat_hien: f.gvcn_phat_hien === "1",
+    ghi_chu: f.ghi_chu,
+    buoi: f.buoi,
+  });
+  flash(res, "Đã nhập thành công");
+  const q = new URLSearchParams({
+    nam: f.nam || "", thang: f.thang || "", week_start: String(saved.week.ngay_bd || f.week_start || ""),
+    tuan_id: String(saved.week.id), lop_id: String(saved.lop_id),
+  });
+  res.redirect(`/bao-cao-tuan?${q}`);
+});
 app.post("/bao-cao-tuan", (req, res) => {
   const f = strictForm(req);
   const n = postedNam(req);
@@ -599,7 +634,7 @@ app.post("/bao-cao-tuan", (req, res) => {
         nextLopId = String(next.id);
         flashMsg = `Đã xong lớp vừa nhập. Tiếp theo: ${next.ten}`;
       } else if (next) {
-        flashMsg = "Đã hoàn tất lớp. Mọi lớp tuần này đã xong — mở Xếp hạng và chốt.";
+        flashMsg = "Đã hoàn tất lớp. Mở Xếp hạng để chốt.";
       }
     }
     flash(res, flashMsg);
@@ -776,12 +811,25 @@ app.post("/khen", (req, res) => {
 });
 
 app.get("/tieu-chi", (req, res) => {
+  const n = namId();
   view(env, req, res, "tieu_chi.html", {
     ...ctx(),
     active: "qc",
-    rows: listTieuChi(con, namId()),
-    base: diemCoSo(con, namId()),
+    rows: listTieuChi(con, n),
+    aliases: listAliases(con, n),
+    base: diemCoSo(con, n),
   });
+});
+app.post("/tieu-chi/alias", (req, res) => {
+  const f = form(req);
+  saveAlias(con, postedNam(req), Number(f.tieu_chi_id), f.alias);
+  flash(res, "Đã gán bí danh lỗi");
+  res.redirect("/tieu-chi");
+});
+app.post("/tieu-chi/alias/:id/xoa", (req, res) => {
+  deleteAlias(con, postedNam(req), Number(req.params.id));
+  flash(res, "Đã xóa bí danh");
+  res.redirect("/tieu-chi");
 });
 app.post("/tieu-chi/luu", (req, res) => {
   try {
@@ -843,7 +891,7 @@ app.get("/xuat/tuan/:tuan_id", (req, res) => {
   requireOwned(con, "tuan", Number(t.id), namId());
   const viewMode = t.trang_thai === "cong_bo" ? "official" : "preview";
   const q = new URLSearchParams({
-    scope: "tuan", key: String(t.id), model: "monthly", view: viewMode, format: "xlsx",
+    scope: "tuan", key: String(t.id), model: "monthly", view: viewMode, format: "print",
     cut: String(req.query.cut || "school"),
   });
   if (req.query.nhom) q.set("nhom", String(req.query.nhom));
@@ -857,7 +905,7 @@ function exportRequest(req: express.Request): ExportRequest {
   const model = String(req.query.model || "monthly");
   const viewMode = String(req.query.view || "official");
   const cut = String(req.query.cut || "school");
-  if (!["tuan", "thang", "nua", "hk", "nam", "hoi_hoc", "tam_ket"].includes(scope) || !Object.hasOwn(MODELS, model) || !["official", "preview"].includes(viewMode)) {
+  if (!["tuan", "thang", "nua", "hk", "nam", "hoi_hoc", "tam_ket", "all"].includes(scope) || !Object.hasOwn(MODELS, model) || !["official", "preview"].includes(viewMode)) {
     throw new WorkflowError(400, "Phạm vi xuất không hợp lệ.");
   }
   return {
@@ -869,13 +917,14 @@ function exportRequest(req: express.Request): ExportRequest {
 }
 
 app.get("/xuat/bao-cao", async (req, res) => {
-  const format = String(req.query.format || "xlsx");
+  const format = String(req.query.format || "print");
   const request = exportRequest(req);
   const tables = reportTables(con, namId(), request);
   const filename = reportFilename(request, format === "docx" ? "docx" : "xlsx");
   if (format === "print") {
     return view(env, req, res, "report_print.html", {
-      table: tables[0],
+      table: tables[0] ?? { title: "Tổng hợp", columns: [], rows: [] },
+      tables: request.scope === "all" ? tables : undefined,
       generated_at: new Date().toLocaleString("vi-VN"),
       desktop: desktopFlag(),
       download_xlsx: withFormat(req, "xlsx"),
@@ -892,7 +941,7 @@ app.get("/xuat/loi-hs", async (req, res) => {
   if (!Number.isSafeInteger(tuanId) || tuanId < 1) throw new WorkflowError(400, "Tuần xuất không hợp lệ.");
   const week = requireOwned(con, "tuan", tuanId, n);
   const tables = violationTables(con, n, tuanId);
-  const format = String(req.query.format || "xlsx");
+  const format = String(req.query.format || "print");
   if (format === "print") {
     return view(env, req, res, "report_print.html", {
       table: tables[0],
@@ -914,7 +963,7 @@ app.get("/xuat/ban-in", async (req, res) => {
   const tuanId = Number(req.query.tuan_id);
   if (!Number.isSafeInteger(tuanId) || tuanId < 1) throw new WorkflowError(400, "Tuần xuất không hợp lệ.");
   const week = requireOwned(con, "tuan", tuanId, n);
-  const format = String(req.query.format || "xlsx");
+  const format = String(req.query.format || "print");
   if (format === "print") {
     return view(env, req, res, "report_print.html", {
       tables: banInTables(con, n, tuanId),
@@ -935,7 +984,7 @@ app.get("/xuat/ban-in", async (req, res) => {
 app.get("/tong-hop/xuat", (req, res) => {
   const q = new URLSearchParams(req.query as Record<string, string>);
   if (!q.get("scope")) q.set("scope", String(req.query.mode || "hk"));
-  if (!q.get("format")) q.set("format", "xlsx");
+  if (!q.get("format")) q.set("format", "print");
   res.redirect(`/xuat/bao-cao?${q}`);
 });
 
@@ -976,7 +1025,21 @@ app.get("/bao-cao", (req, res) => {
     lops: listLop(con, n), hks: [["1", "Học kỳ I"], ["2", "Học kỳ II"]], models: MODELS,
     hoi_hoc: listMilestones(con, n, "hoi_hoc"),
     tam_ket: getTamKet(con, n) ?? null,
+    tam_kets: listTamKet(con, n),
   });
+});
+app.post("/nhap-tuan/phan-anh", async (req, res) => {
+  const n = postedNam(req);
+  const raw = String(form(req).path || "").trim();
+  const filePath = raw || path.join(ROOT, "THEO DOI PHAN ANH_T9 (1).xlsx");
+  if (!existsSync(filePath)) throw new WorkflowError(400, "Không tìm thấy file phản ánh.");
+  const result = await importPhanAnhFile(con, n, filePath);
+  const extra = [
+    result.skippedLocked.length ? `bỏ tuần đã khóa: ${result.skippedLocked.join(", ")}` : "",
+    result.unknownClasses.length ? `lớp không có: ${result.unknownClasses.join(", ")}` : "",
+  ].filter(Boolean);
+  flash(res, `Đã nhập ${result.events} lỗi / ${result.classes} lớp / ${result.weeks} tuần${extra.length ? ". " + extra.join(". ") : "."}`);
+  res.redirect("/bao-cao-tuan");
 });
 app.get("/quy-che", (_req, res) => res.redirect("/tieu-chi"));
 app.post("/quy-che/luu", (req, res) => {
@@ -1024,7 +1087,7 @@ app.get("/cong-thuc", (req, res) => {
 app.post("/cong-thuc", (req, res) => {
   const n = postedNam(req);
   const f = form(req);
-  saveYearFormula(con, n, { ktm_divisor: f.ktm_divisor, hoi_hoc_double: f.hoi_hoc_double });
+  saveYearFormula(con, n, { ktm_divisor: f.ktm_divisor, hoi_hoc_double: f.hoi_hoc_double, hk_basis: f.hk_basis });
   flash(res, "Đã lưu công thức năm học");
   res.redirect("/cong-thuc");
 });
@@ -1089,7 +1152,18 @@ app.all("/danh-gia", (req, res) => {
 app.get("/danh-gia/export", async (req, res) => {
   const kind = String(req.query.kind || "thi");
   const period = String(req.query.period || "1");
-  const buf = await workbookBuffer([assessmentTable(con, namId(), kind, period)]);
+  const table = assessmentTable(con, namId(), kind, period);
+  const format = String(req.query.format || "print");
+  if (format === "print") {
+    return view(env, req, res, "report_print.html", {
+      table,
+      generated_at: new Date().toLocaleString("vi-VN"),
+      desktop: desktopFlag(),
+      download_xlsx: withFormat(req, "xlsx"),
+    });
+  }
+  if (format !== "xlsx") throw new WorkflowError(400, "Định dạng xuất không hợp lệ.");
+  const buf = await workbookBuffer([table]);
   res.setHeader("Content-Type", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
   res.setHeader("Content-Disposition", `attachment; filename="danh-gia-${kind}-${period}.xlsx"`);
   res.send(buf);
@@ -1180,7 +1254,7 @@ app.all("/ne-nep-gvcn", (req, res) => {
           saveGvcnWindow(con, n, f.gvcn_5_1_window);
         } else throw new Error("Thao tác không hợp lệ.");
       });
-      flash(res, f.action === "window" ? "Đã lưu cửa sổ 5.1." : "Đã lưu công tác chủ nhiệm.");
+      flash(res, f.action === "window" ? "Đã lưu cách trừ điểm." : "Đã lưu điểm chủ nhiệm.");
       return res.redirect(urlFor("conduct.index", { hk, mode, view: resultView, lop_id: f.lop_id || undefined }));
     } catch (e) {
       if (e instanceof WorkflowError) throw e;
@@ -1217,7 +1291,18 @@ app.all("/ne-nep-gvcn", (req, res) => {
 app.get("/ne-nep-gvcn/xuat", async (req, res) => {
   const hk = Number(req.query.hk || 1);
   const resultView = String(req.query.view || "official") === "preview" ? "preview" : "official";
-  const buf = await workbookBuffer(conductTables(con, namId(), hk, resultView) as never);
+  const tables = conductTables(con, namId(), hk, resultView) as never;
+  const format = String(req.query.format || "print");
+  if (format === "print") {
+    return view(env, req, res, "report_print.html", {
+      tables,
+      generated_at: new Date().toLocaleString("vi-VN"),
+      desktop: desktopFlag(),
+      download_xlsx: withFormat(req, "xlsx"),
+    });
+  }
+  if (format !== "xlsx") throw new WorkflowError(400, "Định dạng xuất không hợp lệ.");
+  const buf = await workbookBuffer(tables);
   res.setHeader("Content-Type", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
   res.setHeader("Content-Disposition", `attachment; filename="Ne_nep_GVCN_HK${hk}.xlsx"`);
   res.send(buf);

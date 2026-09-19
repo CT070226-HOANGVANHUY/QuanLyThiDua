@@ -66,28 +66,49 @@ export function tbNn(row: Row, siSo: number): number {
 export function soGio(row: Row): number {
   return GIO_KEYS.reduce((s, k) => s + num(row, k), 0);
 }
-export function diemGio(row: Row): number {
-  return HT_GIO_COLS.reduce((s, [k, , w]) => s + num(row, k) * w, 0);
+export type ScoreWeights = {
+  gio?: Partial<Record<string, number>>;
+  ktm?: Partial<Record<string, number>>;
+};
+
+export const HOI_HOC_WEIGHTS: Record<string, ScoreWeights> = {
+  "20-11": {
+    gio: { gio_tot: 2, gio_kha: -2, gio_tb: -3, gio_yeu: -4, gio_kem: -2 },
+    ktm: { ktm_9_10: 4 },
+  },
+  "26-3": {
+    gio: { gio_tot: 2, gio_kha: -1, gio_tb: -2, gio_yeu: -3, gio_kem: -2 },
+    ktm: { ktm_9_10: 4 },
+  },
+};
+
+function colWeight(cols: ColW[], key: string, override?: Partial<Record<string, number>>) {
+  if (override && override[key] != null) return Number(override[key]);
+  return cols.find((col) => col[0] === key)?.[2] ?? 0;
 }
-export function tbGio(row: Row): number {
+
+export function diemGio(row: Row, weights?: ScoreWeights): number {
+  return HT_GIO_COLS.reduce((s, [k]) => s + num(row, k) * colWeight(HT_GIO_COLS, k, weights?.gio), 0);
+}
+export function tbGio(row: Row, weights?: ScoreWeights): number {
   const n = soGio(row);
-  return n > 0 ? diemGio(row) / n : 0;
+  return n > 0 ? diemGio(row, weights) / n : 0;
 }
-export function diemKtm(row: Row): number {
-  return HT_KTM_COLS.reduce((s, [k, , w]) => s + num(row, k) * w, 0);
+export function diemKtm(row: Row, weights?: ScoreWeights): number {
+  return HT_KTM_COLS.reduce((s, [k]) => s + num(row, k) * colWeight(HT_KTM_COLS, k, weights?.ktm), 0);
 }
 export function ktmCount(row: Row): number {
   return num(row, "ktm_9_10") + num(row, "ktm_7_8") + num(row, "ktm_5_6") + num(row, "ktm_3_4") + num(row, "ktm_0_2");
 }
-export function tbKtm(row: Row, divisor: KtmDivisor = "count", siSo = 0): number {
+export function tbKtm(row: Row, divisor: KtmDivisor = "count", siSo = 0, weights?: ScoreWeights): number {
   const n = divisor === "si_so" ? Number(siSo || 0) : ktmCount(row);
-  return n > 0 ? diemKtm(row) / n : 0;
+  return n > 0 ? diemKtm(row, weights) / n : 0;
 }
-export function tbHocTap(row: Row, divisor: KtmDivisor = "count", siSo = 0): number {
-  return tbGio(row) + tbKtm(row, divisor, siSo);
+export function tbHocTap(row: Row, divisor: KtmDivisor = "count", siSo = 0, weights?: ScoreWeights): number {
+  return tbGio(row, weights) + tbKtm(row, divisor, siSo, weights);
 }
-export function tongCong(row: Row): number {
-  return diemGio(row) + diemKtm(row);
+export function tongCong(row: Row, weights?: ScoreWeights): number {
+  return diemGio(row, weights) + diemKtm(row, weights);
 }
 export function tongNet(row: Row): number {
   return diemNn(row) + tongCong(row);
@@ -131,21 +152,21 @@ export type ClassResult = {
   tb_ktm_divisor?: KtmDivisor;
 };
 
-export function scoreGroup(items: ClassResult[], ktmDivisor: KtmDivisor = "count"): ClassResult[] {
+export function scoreGroup(items: ClassResult[], ktmDivisor: KtmDivisor = "count", weights?: ScoreWeights): ClassResult[] {
   for (const it of items) {
     const r = it.row;
     it.diem_nn = diemNn(r);
     it.tb_nn = tbNn(r, it.si_so);
-    it.diem_gio = diemGio(r);
+    it.diem_gio = diemGio(r, weights);
     it.so_gio = soGio(r);
-    it.tb_gio = tbGio(r);
-    it.diem_ktm = diemKtm(r);
-    it.tb_ktm = tbKtm(r, ktmDivisor, it.si_so);
-    it.tb_ht = tbHocTap(r, ktmDivisor, it.si_so);
+    it.tb_gio = tbGio(r, weights);
+    it.diem_ktm = diemKtm(r, weights);
+    it.tb_ktm = tbKtm(r, ktmDivisor, it.si_so, weights);
+    it.tb_ht = tbHocTap(r, ktmDivisor, it.si_so, weights);
     it.tb_ktm_divisor = ktmDivisor;
     it.tong_tru = tongTru(r);
-    it.tong_cong = tongCong(r);
-    it.tong_net = tongNet(r);
+    it.tong_cong = tongCong(r, weights);
+    it.tong_net = diemNn(r) + it.tong_cong;
   }
   const nn = competitionRanks(items.map((i) => i.tb_nn), true);
   const ht = competitionRanks(items.map((i) => i.tb_ht), true);
@@ -161,7 +182,7 @@ export function scoreGroup(items: ClassResult[], ktmDivisor: KtmDivisor = "count
   return items;
 }
 
-export function scoreAll(items: ClassResult[], ktmDivisor: KtmDivisor = "count"): ClassResult[] {
+export function scoreAll(items: ClassResult[], ktmDivisor: KtmDivisor = "count", weights?: ScoreWeights): ClassResult[] {
   const by = new Map<number, ClassResult[]>();
   for (const it of items) {
     const g = by.get(it.nhom) ?? [];
@@ -169,6 +190,6 @@ export function scoreAll(items: ClassResult[], ktmDivisor: KtmDivisor = "count")
     by.set(it.nhom, g);
   }
   const out: ClassResult[] = [];
-  for (const g of [...by.keys()].sort((a, b) => a - b)) out.push(...scoreGroup(by.get(g)!, ktmDivisor));
+  for (const g of [...by.keys()].sort((a, b) => a - b)) out.push(...scoreGroup(by.get(g)!, ktmDivisor, weights));
   return out;
 }

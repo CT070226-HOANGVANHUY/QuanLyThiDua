@@ -56,6 +56,7 @@ function rosterYearId(con: Db): number | undefined {
 }
 
 export function importRoster2026(con: Db, namId?: number) {
+  if (!tableExists(con, "lop") || !tableExists(con, "nam_hoc")) return;
   const id = namId ?? rosterYearId(con);
   if (id == null) return;
   const seed = loadSeed();
@@ -79,6 +80,7 @@ export function importRoster2026(con: Db, namId?: number) {
     if (!names.has(String(lop.ten))) run(con, "UPDATE lop SET ap_dung=0 WHERE id=?", [lop.id]);
   }
   applyLeftoverWeekClass(con, id);
+  assignDefaultGvcnGroups(con, id);
   syncNhapWeekClass(con, id);
 }
 
@@ -89,14 +91,32 @@ function migrateV5(con: Db) {
   importRoster2026(con);
 }
 
-export function ensureYearFormula(con: Db) {
-  con.exec(`CREATE TABLE IF NOT EXISTS year_formula (
+const YEAR_FORMULA_SQL = `CREATE TABLE IF NOT EXISTS year_formula (
   nam_id INTEGER PRIMARY KEY REFERENCES nam_hoc(id) ON DELETE CASCADE,
   ktm_divisor TEXT NOT NULL DEFAULT 'count' CHECK(ktm_divisor IN ('count','si_so')),
   hk_month_weight REAL NOT NULL DEFAULT 2,
-  hoi_hoc_double TEXT NOT NULL DEFAULT 'none' CHECK(hoi_hoc_double IN ('none','hdtt_only','week_xt')),
-  gvcn_5_1_window TEXT NOT NULL DEFAULT 'semester' CHECK(gvcn_5_1_window IN ('semester','weekly'))
-)`);
+  hoi_hoc_double TEXT NOT NULL DEFAULT 'none' CHECK(hoi_hoc_double IN ('none','hdtt','hdtt_only','week_xt')),
+  gvcn_5_1_window TEXT NOT NULL DEFAULT 'semester' CHECK(gvcn_5_1_window IN ('semester','weekly')),
+  hk_basis TEXT NOT NULL DEFAULT 'months' CHECK(hk_basis IN ('months','dots'))
+)`;
+
+export function ensureYearFormula(con: Db) {
+  const sql = String(get(con, "SELECT sql FROM sqlite_master WHERE type='table' AND name='year_formula'")?.sql || "");
+  if (sql && (!sql.includes("'hdtt'") || !sql.includes("hk_basis"))) {
+    con.exec(YEAR_FORMULA_SQL.replace("year_formula", "year_formula_v11"));
+    const hasBasis = all(con, "PRAGMA table_info(year_formula)").some((col) => col.name === "hk_basis");
+    const hasWindow = all(con, "PRAGMA table_info(year_formula)").some((col) => col.name === "gvcn_5_1_window");
+    run(con, `INSERT OR IGNORE INTO year_formula_v11(nam_id, ktm_divisor, hk_month_weight, hoi_hoc_double, gvcn_5_1_window, hk_basis)
+      SELECT nam_id, ktm_divisor, hk_month_weight,
+        CASE WHEN hoi_hoc_double IN ('none','hdtt','hdtt_only','week_xt') THEN hoi_hoc_double ELSE 'none' END,
+        ${hasWindow ? "gvcn_5_1_window" : "'semester'"},
+        ${hasBasis ? "CASE WHEN hk_basis IN ('months','dots') THEN hk_basis ELSE 'months' END" : "'months'"}
+      FROM year_formula`);
+    con.exec("DROP TABLE year_formula");
+    con.exec("ALTER TABLE year_formula_v11 RENAME TO year_formula");
+  } else {
+    con.exec(YEAR_FORMULA_SQL);
+  }
   if (tableExists(con, "nam_hoc")) {
     run(con, "INSERT OR IGNORE INTO year_formula(nam_id) SELECT id FROM nam_hoc");
   }
@@ -151,6 +171,13 @@ export const CATALOG_SCORE_KEYS: Record<string, string> = {
 export const HOI_HOC_MILESTONES: { ma: string; ten: string }[] = [
   { ma: "20-11", ten: "Hội học 20/11" },
   { ma: "26-3", ten: "Hội học 26/3" },
+];
+
+export const DOT_8_TUAN: { ma: string; ten: string; from: number; to: number; hk: 1 | 2 }[] = [
+  { ma: "dot_1", ten: "Đợt 1 (tuần 1–8)", from: 1, to: 8, hk: 1 },
+  { ma: "dot_2", ten: "Đợt 2 (tuần 9–18)", from: 9, to: 18, hk: 1 },
+  { ma: "dot_3", ten: "Đợt 3 (tuần 19–26)", from: 19, to: 26, hk: 2 },
+  { ma: "dot_4", ten: "Đợt 4 (tuần 27–34)", from: 27, to: 34, hk: 2 },
 ];
 
 export function ensureCatalogScoreKeys(con: Db) {
@@ -217,6 +244,35 @@ export function ensureHoiHocMilestones(con: Db) {
         VALUES (?,'hoi_hoc',?,?,'manual')
         ON CONFLICT(nam_hoc_id, ma) DO NOTHING`, [nam.id, row.ma, row.ten]);
     }
+  }
+}
+
+export function ensureDotMilestones(con: Db, namId?: number) {
+  if (!tableExists(con, "milestone") || !tableExists(con, "nam_hoc")) return;
+  const years = namId != null
+    ? all(con, "SELECT id FROM nam_hoc WHERE id=?", [namId])
+    : all(con, "SELECT id FROM nam_hoc");
+  for (const nam of years) {
+    for (const row of DOT_8_TUAN) {
+      run(con, `INSERT INTO milestone(nam_hoc_id,loai,ma,ten,nguon_tuan)
+        VALUES (?,'tam_ket',?,?,'manual')
+        ON CONFLICT(nam_hoc_id, ma) DO UPDATE SET ten=excluded.ten`, [nam.id, row.ma, row.ten]);
+    }
+  }
+}
+
+export function assignDefaultGvcnGroups(con: Db, namId?: number) {
+  if (!tableExists(con, "lop") || !tableExists(con, "gvcn_ratio_group")) return;
+  const years = namId != null
+    ? all(con, "SELECT id FROM nam_hoc WHERE id=?", [namId])
+    : all(con, "SELECT id FROM nam_hoc");
+  for (const nam of years) {
+    run(con, `UPDATE lop SET gvcn_group_id=(
+        SELECT g.id FROM gvcn_ratio_group g
+        WHERE g.nam_hoc_id=lop.nam_hoc_id
+          AND g.ma=CASE WHEN lop.loai_hinh='chon' THEN 'A' ELSE 'C' END
+      )
+      WHERE nam_hoc_id=? AND gvcn_group_id IS NULL`, [nam.id]);
   }
 }
 
@@ -287,7 +343,141 @@ export function remapGvcnGroupId(con: Db, toNamId: number, oldGroupId: unknown):
   return dst ? Number(dst.id) : null;
 }
 
-export const APP_SCHEMA_MAX = 10;
+export const APP_SCHEMA_MAX = 12;
+
+export function ensureClarificationCalendar(con: Db) {
+  if (!tableExists(con, "nam_hoc") || !tableExists(con, "school_calendar")) return;
+  for (const nam of all(con, "SELECT id FROM nam_hoc WHERE ten=?", ["2026-2027"])) {
+    if (!get(con, "SELECT nam_id FROM school_calendar WHERE nam_id=?", [nam.id])) {
+      run(con, `INSERT INTO school_calendar(nam_id,ngay_bd,ngay_kt,hk2_bd) VALUES (?,?,?,?)`,
+        [nam.id, "2026-09-07", "2027-05-31", "2027-01-08"]);
+    }
+  }
+}
+
+function applyClarification2026(con: Db) {
+  if (!tableExists(con, "nam_hoc") || !tableExists(con, "year_formula")) return;
+  for (const nam of all(con, "SELECT id FROM nam_hoc WHERE ten=?", ["2026-2027"])) {
+    run(con, `UPDATE year_formula SET ktm_divisor='si_so', hoi_hoc_double='hdtt', hk_basis='dots' WHERE nam_id=?`, [nam.id]);
+  }
+  ensureClarificationCalendar(con);
+}
+
+function migrateV11(con: Db) {
+  ensureYearFormula(con);
+  ensureMilestoneSchema(con);
+  ensureDotMilestones(con);
+  ensureGvcnRatioGroups(con);
+  assignDefaultGvcnGroups(con);
+  importRoster2026(con);
+  applyClarification2026(con);
+}
+
+export function foldAlias(value: string) {
+  return value
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/đ/g, "d")
+    .replace(/[^a-z0-9]+/g, " ")
+    .trim();
+}
+
+export const DEFAULT_LOI_ALIASES: [ma: string, alias: string][] = [
+  ["trang_phuc", "dép sai quy định"],
+  ["trang_phuc", "dép lê"],
+  ["trang_phuc", "không sơ vin"],
+  ["trang_phuc", "không sơ vin trước khi ra khỏi cổng trường"],
+  ["trang_phuc", "không sơ vin trong giờ"],
+  ["trang_phuc", "trang phục không đúng quy định"],
+  ["trang_phuc", "trang phục không đúng"],
+  ["di_muon", "đi muộn"],
+  ["di_muon", "đi học muộn"],
+  ["nghi_hoc", "nghỉ học không phép"],
+  ["nghi_hoc", "nghỉ học không lý do"],
+  ["nghi_hoc", "nghỉ học không phép tiết 1"],
+  ["phu_hieu", "không phù hiệu"],
+  ["phu_hieu", "không đeo phù hiệu"],
+  ["phu_hieu_quen", "quen phù hiệu"],
+  ["phu_hieu_quen", "mất phù hiệu"],
+  ["phu_hieu_quen", "chưa có phù hiệu"],
+  ["phu_hieu_gia", "phù hiệu giả"],
+  ["ve_sinh_ban_muon", "chưa đổ rác"],
+  ["ve_sinh_ban_muon", "không đổ rác"],
+  ["ve_sinh_ban_muon", "đổ rác không đúng"],
+  ["ve_sinh_noi_vu", "chưa trực nhật"],
+  ["ve_sinh_noi_vu", "chưa mở cửa"],
+  ["ve_sinh_noi_vu", "không khóa cửa"],
+  ["tnkt_bo_nhiem_vu", "không làm nhiệm vụ"],
+  ["tnkt_bo_nhiem_vu", "bỏ nhiệm vụ"],
+  ["tnkt_muon", "làm nhiệm vụ muộn"],
+  ["tnkt_muon", "tnkt làm nhiệm vụ muộn"],
+  ["tnkt_muon", "tnkt làm nhiệm vụ muộn 15p"],
+  ["giao_thong_sai_lan", "không xi nhan"],
+  ["giao_thong_sai_lan", "sai làn"],
+  ["giao_thong_sai_lan", "xe"],
+  ["xe_dap_trong_san", "đi xe trong sân trường"],
+  ["sh15_mat_trat_tu", "lớp mất trật tự"],
+  ["sh15_mat_trat_tu", "mất trật tự giờ truy bài"],
+  ["sdb_hoc_tap_ca_nhan", "không học bài"],
+  ["sdb_hoc_tap_ca_nhan", "không chuẩn bị bài về nhà"],
+  ["sdb_hoc_tap_ca_nhan", "không chuẩn bị bài"],
+];
+
+export function ensureAliasSchema(con: Db) {
+  con.exec(`CREATE TABLE IF NOT EXISTS tieu_chi_alias (
+    id INTEGER PRIMARY KEY,
+    nam_hoc_id INTEGER NOT NULL REFERENCES nam_hoc(id) ON DELETE CASCADE,
+    tieu_chi_id INTEGER NOT NULL REFERENCES tieu_chi(id) ON DELETE CASCADE,
+    alias TEXT NOT NULL,
+    alias_fold TEXT NOT NULL,
+    UNIQUE(nam_hoc_id, alias_fold)
+  )`);
+}
+
+export function seedDefaultAliases(con: Db, namId?: number) {
+  ensureAliasSchema(con);
+  if (!tableExists(con, "tieu_chi") || !tableExists(con, "nam_hoc")) return;
+  const years = namId != null
+    ? all(con, "SELECT id FROM nam_hoc WHERE id=?", [namId])
+    : all(con, "SELECT id FROM nam_hoc");
+  for (const nam of years) {
+    const id = Number(nam.id);
+    for (const row of all(con, "SELECT id, ma, ten FROM tieu_chi WHERE nam_hoc_id=? AND ap_dung=1", [id])) {
+      const folded = foldAlias(String(row.ten));
+      if (folded) {
+        run(con, `INSERT OR IGNORE INTO tieu_chi_alias(nam_hoc_id,tieu_chi_id,alias,alias_fold) VALUES (?,?,?,?)`,
+          [id, row.id, String(row.ten).trim(), folded]);
+      }
+    }
+    for (const [ma, alias] of DEFAULT_LOI_ALIASES) {
+      const folded = foldAlias(alias);
+      if (!folded) continue;
+      const tc = get(con, "SELECT id FROM tieu_chi WHERE nam_hoc_id=? AND ma=?", [id, ma]);
+      if (!tc) continue;
+      run(con, `INSERT OR IGNORE INTO tieu_chi_alias(nam_hoc_id,tieu_chi_id,alias,alias_fold) VALUES (?,?,?,?)`,
+        [id, tc.id, alias, folded]);
+    }
+  }
+}
+
+export function copyAliases(con: Db, fromNamId: number, toNamId: number) {
+  ensureAliasSchema(con);
+  seedDefaultAliases(con, toNamId);
+  for (const row of all(con, `SELECT a.alias, a.alias_fold, t.ma
+    FROM tieu_chi_alias a JOIN tieu_chi t ON t.id=a.tieu_chi_id
+    WHERE a.nam_hoc_id=?`, [fromNamId])) {
+    const tc = get(con, "SELECT id FROM tieu_chi WHERE nam_hoc_id=? AND ma=?", [toNamId, row.ma]);
+    if (!tc) continue;
+    run(con, `INSERT OR IGNORE INTO tieu_chi_alias(nam_hoc_id,tieu_chi_id,alias,alias_fold) VALUES (?,?,?,?)`,
+      [toNamId, tc.id, row.alias, row.alias_fold]);
+  }
+}
+
+function migrateV12(con: Db) {
+  ensureAliasSchema(con);
+  seedDefaultAliases(con);
+}
 
 export function ensureAppMeta(con: Db) {
   con.exec(`CREATE TABLE IF NOT EXISTS app_meta (
@@ -310,6 +500,8 @@ export function migrate(con: Db): void {
     [8, migrateV8],
     [9, migrateV9],
     [10, migrateV10],
+    [11, migrateV11],
+    [12, migrateV12],
   ];
   for (const [n, step] of steps) {
     if (userVersion(con) < n) {
@@ -323,6 +515,9 @@ export function migrate(con: Db): void {
   ensureCatalogScoreKeys(con);
   ensureMilestoneSchema(con);
   ensureHoiHocMilestones(con);
+  ensureDotMilestones(con);
   ensureGvcnRatioGroups(con);
+  ensureAliasSchema(con);
+  seedDefaultAliases(con);
   ensureAppMeta(con);
 }

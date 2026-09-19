@@ -1,49 +1,215 @@
 {% extends "base.html" %}
 {% block title %}Cách dùng{% endblock %}
 {% block body %}
-<h1 class="page-title">Cách dùng phần mềm</h1>
-<p class="page-sub">Dành cho cô phụ trách thi đua. Mọi số liệu lưu trên máy này, không cần mạng, không cần bí thư đăng nhập.</p>
+<h1 class="page-title">Cách dùng</h1>
+<p class="page-sub">Hướng dẫn làm việc trên phần mềm thi đua chi đoàn. Đọc khi mới dùng, hoặc khi không rõ một nút.</p>
 
-<div class="card howto">
-  <h2>Làm gì mỗi tuần?</h2>
-  <p>Trên mọi trang tuần có dải 4 bước. Ô đang làm có nền vàng. Bấm bước để nhảy tới.</p>
-  <ol>
-    <li><b>Nhập tuần</b> — chọn tuần bằng «Tuần trước / Tuần sau». Chọn lớp, bấm ngày, chọn/gõ tên, bấm Thêm. Giờ và miệng bấm − / +. Xong lớp thì Hoàn tất lớp.</li>
-    <li><b>Chốt tuần</b> — khi đủ lớp, mở Xếp hạng và chốt, bấm Chốt tuần. Còn mở lại được.</li>
-    <li><b>Công bố</b> — số đã đúng thì Công bố. Số này dùng cho tháng, hội học, điểm chủ nhiệm.</li>
-    <li><b>In bảng</b> — bấm Xem trước, kiểm tra số, rồi In hoặc Tải Excel.</li>
+<div class="howto">
+<div class="card">
+  <h2>Phần mềm này làm gì</h2>
+  <p>Một người nhập số liệu trên một máy, không cần mạng. Chọn <b>năm học</b> ở góc phải trên. Nút mặt trời / mặt trăng đổi sáng tối.</p>
+  <p>Tuần thi đua chạy <b>Thứ Sáu → Thứ Năm</b>. Việc tuần nào cũng theo 4 bước trên thanh: Nhập tuần → Chốt tuần → Công bố → In bảng.</p>
+  <p>Tháng, hội học, chủ nhiệm <b>chỉ lấy tuần đã công bố</b>. Muốn nhìn tạm tuần chưa công bố thì chọn «Xem thử».</p>
+</div>
+
+<div class="card">
+  <h2>Mục lục</h2>
+  <ol class="howto-toc">
+    <li><a href="#tuan">Việc mỗi tuần</a></li>
+    <li><a href="#nhap">Nhập tuần</a></li>
+    <li><a href="#xep">Xếp hạng, chốt, công bố</a></li>
+    <li><a href="#cham">Điểm lớp</a></li>
+    <li><a href="#in">In / xuất</a></li>
+    <li><a href="#phan-anh">Nhập file phản ánh</a></li>
+    <li><a href="#hoi-hoc">Hội học và 8 tuần</a></li>
+    <li><a href="#thang">Tháng / kỳ</a></li>
+    <li><a href="#chu-nhiem">Chủ nhiệm</a></li>
+    <li><a href="#thi">Thi / hoạt động</a></li>
+    <li><a href="#khen">Khen thưởng</a></li>
+    <li><a href="#cai-dat">Cài đặt</a></li>
+    <li><a href="#sao-luu">Sao lưu</a></li>
+    <li><a href="#loi">Khi có lỗi</a></li>
   </ol>
 </div>
 
-<div class="card howto">
-  <h2>Các nút hay dùng</h2>
+<div class="card" id="tuan">
+  <h2>1. Việc mỗi tuần</h2>
+  <ol>
+    <li>Trên <a href="{{ url_for('home') }}">Trang chủ</a> chọn đúng tuần (hoặc «Tuần này»).</li>
+    <li>Mở <a href="{{ url_for('bao_cao_tuan') }}">Nhập tuần</a>. Nhập lỗi cả trường, rồi từng lớp: giờ, miệng, nề nếp. Xong lớp nào bấm <b>Hoàn tất lớp</b>.</li>
+    <li>Đủ lớp thì mở <a href="{{ url_for('xep') }}">Xếp hạng</a> → <b>Chốt tuần</b>.</li>
+    <li>Kiểm tra bảng, rồi <b>Công bố</b>. Sau đó mới in treo tường / tính tháng.</li>
+    <li>Mở <a href="{{ url_for('baocao') }}">In / xuất</a> → <b>Tải / In</b> → xem bảng → In hoặc Tải Excel / Word.</li>
+  </ol>
+  <p>Thanh 4 bước trên trang giúp biết tuần đang ở bước nào. Banner xanh hiện khoảng 10 giây rồi tự tắt; rê chuột vào thì dừng.</p>
+</div>
+
+<div class="card" id="nhap">
+  <h2>2. Nhập tuần</h2>
+  <p class="kicker">Menu <b>Nhập tuần</b></p>
+
+  <h3>Lỗi học sinh — cả trường</h3>
+  <p>Dùng khi có sổ theo dõi / phản ánh: chọn lớp, ngày trong tuần, buổi sáng hoặc chiều, họ tên (trống = tập thể), mã lỗi, số lượng. Bấm <b>Thêm vào lớp</b>. Thành công thì chỉ hiện thông báo xanh, không hiện bảng kết quả.</p>
+  <p>Điểm trừ lấy theo nội quy (mã lỗi). Tên gọi miệng như «dép lê», «chưa đổ rác» khớp nhờ <b>bí danh</b> ở Tiêu chí.</p>
+
+  <h3>Từng lớp</h3>
+  <p>Cột trái chọn lớp. Trạng thái: <b>Chưa</b> / <b>Nháp</b> / <b>Xong</b>.</p>
   <ul>
-    <li><b>Thêm</b> trên phiếu nhập — bấm ngày + tên, không gõ ngày tay. Tên đã nhập tuần trước hiện ra để chọn.</li>
-    <li><b>− / +</b> — đếm giờ và điểm miệng; <b>Không phát sinh</b> khi giấy không có điểm miệng.</li>
-    <li><b>Lưu nháp</b> — cất dở, chưa tính là xong lớp.</li>
-    <li><b>Hoàn tất lớp</b> — lớp này đã nhập xong tuần đó.</li>
-    <li><b>Chốt tuần</b> — khóa để kiểm tra xếp hạng. Còn mở lại được.</li>
-    <li><b>Công bố</b> — chốt chính thức. Số này dùng cho tháng, hội học, điểm chủ nhiệm. Muốn sửa phải hủy công bố.</li>
-    <li><b>Chính thức</b> trên bảng tháng/kỳ — chỉ tính tuần đã công bố.</li>
-    <li><b>Xem trước</b> trên In và tải file — mở bảng trên màn hình. Đúng rồi mới In / Tải Excel.</li>
-    <li><b>Xem thử</b> trên bảng tháng/kỳ — tính tạm, kể cả tuần chưa công bố. Không dùng để họp chính thức.</li>
-    <li><b>Nút mặt trời / mặt trăng</b> góc trên — đổi sáng / tối. Chữ và bảng giữ đủ tương phản.</li>
+    <li><b>Nề nếp:</b> nghỉ không lý do, đi muộn, trang phục, phù hiệu, vi phạm khác. Chọn ngày bằng ô thứ (T6…T5), gõ hoặc chọn họ tên, bấm <b>Thêm</b>. Tuần đầu gõ tên; tuần sau chọn gợi ý.</li>
+    <li><b>Vi phạm khác:</b> chọn tiêu chí. Đánh <b>Tập thể</b> nếu cả lớp. Đánh <b>GVCN phát hiện</b> nếu chủ nhiệm phát hiện (ảnh hưởng trừ chủ nhiệm ở lỗi nặng).</li>
+    <li><b>Thái độ / ý thức:</b> họ tên, tiết / môn, nội dung.</li>
+    <li><b>Giờ học:</b> gõ <b>Tổng giờ</b>, rồi Tốt / Khá / TB / Yếu / Kém bằng nút − / +. Tổng các loại phải bằng tổng giờ. Thiếu thì ghi <b>Lý do giờ chưa xếp loại</b>, hoặc bấm <b>+ phần còn</b> để đổ vào một loại.</li>
+    <li><b>Điểm miệng:</b> số lượt 9–10, 7–8, 5–6, 3–4, 0–2. Không có điểm thì bấm <b>Không phát sinh điểm miệng</b> (cần ghi chú).</li>
+  </ul>
+  <p><b>Lưu nháp</b> giữ để sửa tiếp. <b>Hoàn tất lớp</b> đánh dấu lớp xong, chuyển lớp tiếp. Ngày phải nằm trong tuần đang chọn.</p>
+  <p>Tuần đã chốt / công bố thì form khóa. Muốn sửa: Xếp hạng → ghi lý do → <b>Mở lại</b> hoặc <b>Hủy công bố</b>.</p>
+</div>
+
+<div class="card" id="xep">
+  <h2>3. Xếp hạng, chốt, công bố</h2>
+  <p class="kicker">Menu <b>Xếp hạng</b></p>
+  <p>Bảng chia <b>Lớp chọn</b> và <b>Lớp thường</b>, xếp riêng từng nhóm. Cột XT là hạng tuần (1 tốt nhất). Hai lớp cùng nhất thì cả hai đều 1.</p>
+  <ul>
+    <li>Còn lớp chưa hoàn tất thì không chốt được.</li>
+    <li><b>Chốt tuần</b> khóa số liệu để xem hạng.</li>
+    <li><b>Công bố</b> chốt chính thức. Tháng / hội học / chủ nhiệm mới lấy tuần này.</li>
+    <li>Mở lại hoặc hủy công bố <b>bắt buộc ghi lý do</b>.</li>
+    <li>Cột <b>±</b> so với tuần trước: xanh là lên, đỏ là xuống.</li>
+  </ul>
+  <p>Bấm tên lớp để xem <b>Điểm lớp</b> (chi tiết cộng trừ).</p>
+</div>
+
+<div class="card" id="cham">
+  <h2>4. Điểm lớp</h2>
+  <p class="kicker">Menu <b>Điểm lớp</b></p>
+  <p>Xem TB nề nếp, giờ, miệng, hạng. Bảng dưới là từng tiêu chí: từ phiếu nhập hay điều chỉnh tay.</p>
+  <p>Tuần đang nhập có thể <b>Điều chỉnh nề nếp</b> (chọn tiêu chí, số lượng, lý do). Tuần đã khóa thì chỉ xem.</p>
+</div>
+
+<div class="card" id="in">
+  <h2>5. In / xuất</h2>
+  <p class="kicker">Menu <b>In / xuất</b> — cũng có nút Tải / In trên Xếp hạng, Hội học, Tháng / kỳ, Chủ nhiệm, Thi / HĐ</p>
+  <p>Luôn 2 bước: bấm <b>Tải / In</b> → trang xem trước → rồi mới <b>In</b>, <b>Tải Excel</b> hoặc <b>Tải Word</b>.</p>
+  <p>Khi in: trong hộp thoại in, <b>bỏ chọn «Tiêu đề và chân trang»</b> để không hiện địa chỉ trang. Góc phải dưới tờ in chỉ hiện giờ in.</p>
+  <ul>
+    <li><b>Vi phạm theo lớp</b> — sổ lỗi học sinh, xếp theo lớp rồi tên.</li>
+    <li><b>Bảng treo tường</b> — Ban in nề nếp / học tập, có cột thưởng chủ nhiệm.</li>
+    <li><b>Báo cáo chi đoàn</b> — giấy từng lớp. Có <b>Mẫu trắng</b> nếu chưa nhập.</li>
+    <li><b>Tuần / Tháng / Học kỳ / Hội học / Cả năm</b> — bảng tổng hợp. «Cả năm — một file» gộp nhiều sheet Excel.</li>
+  </ul>
+  <p>«Chỉ tuần đã công bố» là số chính thức. «Kể cả tuần chưa công bố» / «Xem thử» chỉ để kiểm tra.</p>
+</div>
+
+<div class="card" id="phan-anh">
+  <h2>6. Nhập file phản ánh</h2>
+  <p>In / xuất → <b>Nhập file phản ánh</b>. Dán đường dẫn file Excel theo dõi lỗi tuần (ví dụ sheet phản ánh tháng 9). Phần mềm đọc lớp, ngày, tên, lỗi rồi ghi vào tuần đúng.</p>
+  <p>Xong thì vào Nhập tuần kiểm tra từng lớp. Tên lỗi lạ thì thêm bí danh ở Tiêu chí.</p>
+</div>
+
+<div class="card" id="hoi-hoc">
+  <h2>7. Hội học và 8 tuần</h2>
+  <p class="kicker">Menu <b>Hội học</b> — cấu hình tuần ở <a href="/nam-hoc">Năm học</a></p>
+  <p>Hội học (20/11, 26/3) cần <b>đúng 4 tuần</b> đã chọn trên Năm học. Hạng đợt = cộng hạng 4 tuần đó (trừ khi Cài đặt đổi cách tính).</p>
+  <p>Có thể ghi kỷ luật, khen, XT ghi đè, hạng văn nghệ / thể thao nếu công thức có HĐTT.</p>
+  <p><b>8 tuần</b> (nếu đã tạo mốc): đợt 1–8, 9–18, 19–26, 27–34. Học kỳ mặc định = tổng hạng các đợt × 2 + hoạt động.</p>
+</div>
+
+<div class="card" id="thang">
+  <h2>8. Tháng / kỳ</h2>
+  <p class="kicker">Menu <b>Tháng / kỳ</b></p>
+  <p>Chọn cách gộp, phạm vi (tháng / nửa kỳ / học kỳ / năm), kỳ, rồi «Chỉ tuần đã công bố» hoặc «Xem thử».</p>
+  <p>Có thể ghi kỷ luật, khen, ghi chú, <b>XT ghi đè</b> (khi BCH chốt hạng khác số máy). Bấm <b>Lưu ghi chú và XT ghi đè</b>.</p>
+  <p>Mở «Cấu hình kỳ tổng hợp» nếu cần: tuần nào tính vào tổng, tháng thuộc HK nào.</p>
+</div>
+
+<div class="card" id="chu-nhiem">
+  <h2>9. Chủ nhiệm (20 điểm)</h2>
+  <p class="kicker">Menu <b>Chủ nhiệm</b></p>
+  <p>Điểm công tác chủ nhiệm <b>khác</b> hạng tuần. Xếp hạng tuần chia lớp chọn / lớp thường. Chủ nhiệm chia nhóm <b>A / B / C</b> (ngưỡng trừ khác nhau).</p>
+  <ol>
+    <li>Gán nhóm A/B/C cho từng lớp (bảng trên trang này, hoặc menu Lớp). Lớp chưa gán thì không ra điểm.</li>
+    <li>Chọn học kỳ. Official cần mọi tuần của kỳ đã công bố; chưa đủ thì chọn «Xem thử».</li>
+    <li>Bảng hiện trừ ngưỡng, trừ lỗi nặng, cộng thưởng hạng tuần (nhất 0,5 / nhì 0,3 / ba 0,2), điểm / 20.</li>
+  </ol>
+  <h3>Lỗi nặng</h3>
+  <p>Kỷ luật mức 30 / 50. Nếu <b>GVCN phát hiện</b> thì không trừ chủ nhiệm sự kiện đó. Đánh dấu rồi <b>Lưu GVCN phát hiện</b>.</p>
+  <h3>Điểm trừ tuần (thay thế)</h3>
+  <p>Chỗ này <b>không dùng hàng tuần</b>. Chỉ khi điểm gốc tuần sai / BCH chốt số khác: chọn lớp, gõ <b>Điểm thay thế</b>, ghi chú nguồn, <b>Lưu nguồn</b>.</p>
+  <ul>
+    <li>Ô thay thế trống (chữ «Gốc») → dùng điểm máy tính.</li>
+    <li>Có số thay thế → tuần đó dùng số đó; lỗi nặng tuần đó không quy đổi thêm; số này vẫn cộng vào tổng học kỳ.</li>
+    <li>Xóa số thay thế rồi lưu → trở lại điểm gốc.</li>
+  </ul>
+  <p><b>Cách trừ điểm nề nếp:</b> «Cộng cả học kỳ rồi trừ» (mặc định) hoặc «Trừ từng tuần rồi cộng».</p>
+</div>
+
+<div class="card" id="thi">
+  <h2>10. Thi / hoạt động</h2>
+  <p class="kicker">Menu <b>Thi / HĐ</b></p>
+  <p>Chọn bảng <b>Thi</b> hoặc <b>Văn nghệ / thể thao</b>, chọn kỳ, chọn lớp.</p>
+  <ul>
+    <li>Thi: tỷ lệ % từng môn, số HS giỏi / khá / TB / yếu / kém (tổng không vượt sĩ số).</li>
+    <li>Hoạt động: hạng văn nghệ, thể thao của lớp.</li>
+  </ul>
+  <p><b>Lưu</b> từng lớp. Bảng Kết quả bên dưới là xếp hạng cả khối. Dùng cho học kỳ / hội học nếu công thức có HĐTT.</p>
+</div>
+
+<div class="card" id="khen">
+  <h2>11. Khen thưởng</h2>
+  <p>Chọn kỳ, ghi kết quả và ghi chú từng lớp, bấm <b>Lưu</b>. Đây là chỗ ghi nhận khen, không tự tính thưởng.</p>
+</div>
+
+<div class="card" id="cai-dat">
+  <h2>12. Cài đặt</h2>
+
+  <h3>Lớp</h3>
+  <p>Tên, sĩ số, GVCN, <b>Lớp chọn / Lớp thường</b> thuộc năm học đang chọn. Năm mới: copy danh sách rồi sửa — không gõ lại từ đầu.</p>
+  <ul>
+    <li><b>Áp dụng</b>: lớp không còn trong năm thì ngừng áp dụng, không xóa (giữ số liệu cũ).</li>
+    <li>Nhóm CN A/B/C trên trang Lớp hoặc Chủ nhiệm.</li>
+    <li>Nút xóa tuần mẫu Excel cũ chỉ dùng khi còn tuần rác lúc cài.</li>
+  </ul>
+
+  <h3>Tiêu chí</h3>
+  <p>Mã + điểm theo nội quy năm này. <b>Điểm cơ sở</b> là điểm nề nếp lúc chưa trừ.</p>
+  <p><b>Bí danh:</b> thêm tên gọi sổ TNKT (dép lê, chưa đổ rác…) để nhập / import vẫn ra đúng tiêu chí.</p>
+
+  <h3>Công thức</h3>
+  <ul>
+    <li>Điểm miệng chia cho số lần có điểm, hoặc sĩ số lớp.</li>
+    <li>Hội học: cộng 4 hạng tuần (mặc định), hoặc cộng thêm văn nghệ / thể thao.</li>
+    <li>Học kỳ: theo đợt 8 tuần hoặc theo tháng.</li>
+  </ul>
+  <p>Để mặc định nếu BCH chưa đổi.</p>
+
+  <h3>Năm học</h3>
+  <ul>
+    <li>Ngày bắt đầu / kết thúc, ngày HK II, tên trường trên giấy in.</li>
+    <li>Chọn đúng 4 tuần hội học 20/11 và 26/3.</li>
+    <li>Tạo mốc 8 tuần nếu cần.</li>
+    <li><b>Nạp danh sách 2026–2027</b> cập nhật lớp năm đó; lớp không còn sẽ ngừng áp dụng.</li>
+    <li>Góc phải: <b>Năm mới</b> — đặt tên (vd. 2027-2028), tick copy lớp sang năm mới.</li>
   </ul>
 </div>
 
-<div class="card howto">
-  <h2>Đầu năm (làm một lần)</h2>
-  <ol>
-    <li><b>Danh sách lớp</b> — sĩ số, GVCN, đánh dấu lớp chọn / lớp thường.</li>
-    <li>Gán <b>nhóm A / B / C</b> cho điểm chủ nhiệm (A trừ nhanh hơn). Không gán thì cuối kỳ chưa ra điểm GVCN.</li>
-    <li><b>Năm học và lịch</b> — ngày bắt đầu, kết thúc. Đánh dấu 4 tuần hội học tháng 11 và tháng 3.</li>
-  </ol>
+<div class="card" id="sao-luu">
+  <h2>13. Sao lưu</h2>
+  <p class="kicker">Menu <b>Sao lưu</b> — nên làm sau mỗi tuần công bố, và copy ra USB</p>
+  <p>Bấm <b>Sao lưu</b>. Để trống thư mục thì lưu trong máy; hoặc ghi ổ USB (ví dụ E:\).</p>
+  <p><b>Phục hồi</b> (bản cửa sổ phần mềm): Chọn file… → xác nhận. Số liệu hiện tại bị thay bằng bản chọn. Mở bằng trình duyệt thì phải đóng phần mềm, copy file vào thư mục dữ liệu, mở lại.</p>
 </div>
 
-<div class="card howto">
-  <h2>Giữ số liệu an toàn</h2>
-  <p>Mở <b>Sao lưu dữ liệu</b>, bấm Sao lưu, chọn USB. Làm sau mỗi buổi nhập tuần. Nếu máy hỏng, copy file đã lưu về máy mới rồi phục hồi.</p>
+<div class="card" id="loi">
+  <h2>14. Khi có lỗi</h2>
+  <ul>
+    <li>Lỗi nặng: hộp thoại hệ thống <b>và</b> banner đỏ. Đọc xong, sửa chỗ được chỉ (ô ngày, giờ, lớp…).</li>
+    <li>Thành công: banner xanh, tự tắt khoảng 10 giây.</li>
+    <li>«Còn lớp chưa hoàn tất» → về Nhập tuần, lớp còn chữ Chưa / Nháp.</li>
+    <li>«Cần ghi lý do khi mở lại» → gõ ô Lý do trên Xếp hạng rồi bấm lại.</li>
+    <li>Hạng tháng / hội học trống → còn tuần chưa công bố, hoặc thiếu tuần hội học trên Năm học.</li>
+    <li>Chủ nhiệm không có điểm → chưa gán nhóm A/B/C, hoặc còn tuần chưa công bố.</li>
+  </ul>
+  <p>Phần mềm chạy offline, không gửi dữ liệu lên mạng. Mất máy hoặc hỏng ổ mà không sao lưu USB thì mất số.</p>
 </div>
-
-<p><a class="btn" href="/">Về trang Hôm nay làm gì</a></p>
+</div>
 {% endblock %}

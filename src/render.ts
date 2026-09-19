@@ -129,6 +129,12 @@ export function createEnv(views: string) {
     return String(v ?? "");
   });
   env.addFilter("replace", (s: unknown, a: string, b: string) => String(s).replaceAll(a, b));
+  env.addFilter("paper", (v: unknown) => {
+    if (v == null || v === "") return v ?? "";
+    if (typeof v !== "number" || !Number.isFinite(v)) return v;
+    if (Number.isInteger(v)) return v;
+    return Number(v.toFixed(3));
+  });
   env.addTest("none", (v: unknown) => v === null || v === undefined);
   env.addTest("float", (v: unknown) => typeof v === "number" && !Number.isInteger(v));
   env.addTest("number", (v: unknown) => typeof v === "number");

@@ -16,26 +16,25 @@
       <option value="preview" {% if resultView=='preview' %}selected{% endif %}>Xem thử</option>
     </select>
   </div>
-  <a class="btn" href="/xuat/bao-cao?scope={{ table.milestone.loai }}&key={{ table.milestone.id }}&model=monthly&view={{ resultView }}&format=print&cut=school">Xem trước</a>
-  <a class="btn-gold" href="/xuat/bao-cao?scope={{ table.milestone.loai }}&key={{ table.milestone.id }}&model=monthly&view={{ resultView }}&format=xlsx&cut=school">Tải Excel</a>
+  <a class="btn" href="/xuat/bao-cao?scope={{ table.milestone.loai }}&key={{ table.milestone.id }}&model=monthly&view={{ resultView }}&format=print&cut=school">Tải / In</a>
 </form>
 
 <div class="card">
   <h2>{{ table.title }}</h2>
-  <p class="muted">{{ table.source }}</p>
-  {% for note in table.notes %}<p class="notice">{{ note }}</p>{% endfor %}
   {% if not table.weeks or table.weeks|length == 0 %}
-  <p class="notice">Chưa chọn 4 tuần của đợt này. Mở <a href="/nam-hoc">Năm học và lịch</a> để đánh dấu tuần.</p>
+  <p class="notice">{% if table.milestone.loai=='tam_ket' %}Chưa có tuần trong đợt. Mở <a href="/nam-hoc">Năm học</a> để kiểm tra lịch.{% else %}Chưa chọn 4 tuần. Mở <a href="/nam-hoc">Năm học</a> để đánh dấu.{% endif %}</p>
   {% endif %}
   <form method="post" action="/hoi-hoc/ghi-chu">
     <input type="hidden" name="nam_id" value="{{ nam.id }}">
     <input type="hidden" name="milestone_id" value="{{ milestone_id }}">
     <input type="hidden" name="view" value="{{ resultView }}">
-    <div class="table-wrap"><table class="data" style="min-width: {{ table.columns|length * 110 + 80 }}px">
-      <thead><tr>{% for col in table.columns %}<th>{{ col[1] }}</th>{% endfor %}</tr></thead>
+    <div class="table-wrap fit"><table class="data fit">
+      <thead><tr>{% for col in table.columns %}{% if col[0] not in ['complete_count','constituent_count','input_source'] %}<th>{{ col[1] }}</th>{% endif %}{% endfor %}</tr></thead>
       <tbody>{% for row in table.rows %}<tr>
         {% for col in table.columns %}
-          {% if col[0]=='discipline' %}<td><input name="discipline_{{ row.lop_id }}" value="{{ row.discipline }}"></td>
+          {% if col[0] in ['complete_count','constituent_count','input_source'] %}
+          {% elif col[0]=='nhom' %}<td>{{ 'Lớp chọn' if row.nhom==1 else 'Lớp thường' }}</td>
+          {% elif col[0]=='discipline' %}<td><input name="discipline_{{ row.lop_id }}" value="{{ row.discipline }}"></td>
           {% elif col[0]=='reward' %}<td><input name="reward_{{ row.lop_id }}" value="{{ row.reward }}"></td>
           {% elif col[0]=='notes' %}<td><input name="notes_{{ row.lop_id }}" value="{{ row.notes }}"></td>
           {% elif col[0]=='override_rank' %}<td><input type="number" min="1" name="rank_{{ row.lop_id }}" value="{{ row.override_rank or '' }}"></td>
